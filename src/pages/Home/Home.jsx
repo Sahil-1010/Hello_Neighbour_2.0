@@ -1,42 +1,51 @@
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Tag } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 import PostCard from "../../components/common/PostCard";
 import CreatePostModal from "../../components/home/CreatePostModal";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 const filters = [
-  { id: "all", label: "All", icon: "🏠" },
+  { id: "all",     label: "All",    icon: "🏠" },
   { id: "warning", label: "Alerts", icon: "⚠️" },
-  { id: "help", label: "Help", icon: "🆘" },
-  { id: "offer", label: "Offers", icon: "🎉" },
+  { id: "help",    label: "Help",   icon: "🆘" },
+  { id: "offer",   label: "Offers", icon: "🎉" },
 ];
 
-function StoriesRow() {
-  const { user, nearbyUsers } = useApp();
-  const storyUsers = [user, ...nearbyUsers.slice(0, 5)];
+// ── Offer Feed Card ────────────────────────────────────────────────────────────
+function OfferFeedCard({ offer }) {
+  const navigate = useNavigate();
   return (
-    <div className="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
-      <div className="flex gap-3 px-4 py-4 overflow-x-auto hide-scrollbar">
-        {storyUsers.map((u, i) => (
-          <button key={u?.id || i} className="flex flex-col items-center gap-1.5 flex-shrink-0 group">
-            <div className={`p-0.5 rounded-2xl ${i === 0 ? "bg-gradient-to-br from-gray-300 to-gray-400" : "bg-gradient-to-br from-emerald-400 to-teal-500"}`}>
-              <div className="bg-white dark:bg-gray-800 p-0.5 rounded-[14px]">
-                <div className="relative">
-                  <img src={u?.avatar} alt={u?.name} className="w-14 h-14 rounded-[12px] object-cover" />
-                  {i === 0 && (
-                    <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-white dark:border-gray-800 flex items-center justify-center">
-                      <Plus size={10} className="text-white" strokeWidth={3} />
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-            <span className="text-[10px] text-gray-600 dark:text-gray-400 font-medium w-16 text-center truncate">
-              {i === 0 ? "Your story" : u?.name?.split(" ")[0]}
-            </span>
-          </button>
-        ))}
+    <div
+      onClick={() => navigate(`/businesses`)}
+      className="card p-4 border border-emerald-100 dark:border-emerald-800/50 bg-emerald-50/30 dark:bg-emerald-900/10 cursor-pointer hover:shadow-card-hover transition-shadow">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">
+          {offer.categoryIcon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-gray-900 dark:text-white text-sm truncate">{offer.businessName}</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500">{offer.category}</p>
+        </div>
+        <span className="badge bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 flex-shrink-0 text-[10px]">
+          🎉 Offer
+        </span>
+      </div>
+      <h3 className="font-bold text-gray-900 dark:text-white text-sm mb-1">{offer.title}</h3>
+      {offer.description && (
+        <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mb-2">{offer.description}</p>
+      )}
+      <div className="flex items-center gap-2 flex-wrap">
+        {offer.discount && (
+          <span className="badge bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 flex items-center gap-1 text-xs">
+            <Tag size={10} /> {offer.discount}
+          </span>
+        )}
+        {offer.validUntil && (
+          <span className="text-xs text-gray-400 dark:text-gray-500">
+            Valid until {new Date(offer.validUntil).toLocaleDateString()}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -68,8 +77,9 @@ function CreatePostBar({ onOpen }) {
 }
 
 function RightSidebar() {
-  const { filteredJobs, currentNeighborhood } = useApp();
+  const { filteredJobs, filteredBusinesses, nearbyUsers, currentNeighborhood } = useApp();
   const pendingJobs = filteredJobs.filter((j) => j.status === "pending").slice(0, 2);
+  const workerCount = nearbyUsers.filter((u) => u.role === "worker").length;
 
   return (
     <div className="space-y-4">
@@ -104,10 +114,10 @@ function RightSidebar() {
         <h3 className="font-semibold text-gray-900 dark:text-white text-sm mb-3">{currentNeighborhood}</h3>
         <div className="grid grid-cols-2 gap-3">
           {[
-            { label: "Members", value: "1,247", icon: "👥" },
-            { label: "Active Jobs", value: "34", icon: "💼" },
-            { label: "Workers", value: "89", icon: "🔧" },
-            { label: "Businesses", value: "19", icon: "🏪" },
+            { label: "Members", value: nearbyUsers.length || "—", icon: "👥" },
+            { label: "Active Jobs", value: filteredJobs.filter((j) => j.status === "pending").length, icon: "💼" },
+            { label: "Workers", value: workerCount || "—", icon: "🔧" },
+            { label: "Businesses", value: filteredBusinesses.length || "—", icon: "🏪" },
           ].map((stat) => (
             <div key={stat.label} className="bg-gray-50 dark:bg-gray-700 rounded-xl p-3 text-center">
               <div className="text-xl mb-1">{stat.icon}</div>
@@ -134,7 +144,7 @@ function RightSidebar() {
 }
 
 export default function Home() {
-  const { filteredPosts, currentNeighborhood } = useApp();
+  const { filteredPosts, offers, currentNeighborhood } = useApp();
   const [activeFilter, setActiveFilter] = useState("all");
   const [showCreatePost, setShowCreatePost] = useState(false);
 
@@ -143,13 +153,15 @@ export default function Home() {
       ? filteredPosts
       : filteredPosts.filter((p) => p.type === activeFilter);
 
+  // Show business offers when on "all" or "offer" filter
+  const displayedOffers = (activeFilter === "all" || activeFilter === "offer") ? offers : [];
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-6">
       {/* Main Feed */}
       <div className="space-y-4">
-        {/* Stories + create bar */}
+        {/* Alerts row + create bar */}
         <div className="card overflow-hidden">
-          <StoriesRow />
           <CreatePostBar onOpen={() => setShowCreatePost(true)} />
         </div>
 
@@ -177,19 +189,31 @@ export default function Home() {
           ))}
         </div>
 
+        {/* Business Offers (shown when "all" or "offer" filter active) */}
+        {displayedOffers.length > 0 && (
+          <div className="space-y-4">
+            <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide px-1">
+              🎉 Active Business Offers
+            </p>
+            {displayedOffers.map((offer) => (
+              <OfferFeedCard key={offer.id} offer={offer} />
+            ))}
+          </div>
+        )}
+
         {/* Posts */}
-        {displayedPosts.length === 0 ? (
+        {displayedPosts.length === 0 && displayedOffers.length === 0 ? (
           <div className="card p-12 text-center">
             <p className="text-4xl mb-3">📭</p>
             <p className="text-gray-500 dark:text-gray-400 text-sm">No posts in this category yet.</p>
           </div>
-        ) : (
+        ) : displayedPosts.length > 0 ? (
           <div className="space-y-4">
             {displayedPosts.map((post) => (
               <PostCard key={post.id} post={post} />
             ))}
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Right Sidebar */}

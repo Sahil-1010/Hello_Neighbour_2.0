@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   Building2, TrendingUp, Eye, MessageCircle, Star, Plus, Edit3, Tag,
-  Briefcase, ToggleLeft, ToggleRight, ChevronRight, BarChart3, Users, Clock, Phone, Trash2,
+  ToggleLeft, ToggleRight, ChevronRight, BarChart3, Users, Clock, Phone, Trash2,
 } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 import { api } from "../../services/api";
@@ -328,7 +328,7 @@ function NoBusiness({ onCreateClick }) {
 // ── Main Dashboard ────────────────────────────────────────────────────────────
 
 export default function BusinessDashboard() {
-  const { user, jobs, addToast, addBusiness, updateBusiness } = useApp();
+  const { user, addToast, addBusiness, updateBusiness } = useApp();
   const [myBusiness, setMyBusiness] = useState(null);
   const [businessLoading, setBusinessLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -351,8 +351,6 @@ export default function BusinessDashboard() {
     setMyBusiness(updated);
     updateBusiness(updated); // sync with public business list
   };
-
-  const businessJobs = jobs.filter((j) => j.status !== "completed").slice(0, 3);
 
   const stats = [
     { icon: Eye, label: "Profile Views", value: "1,247", change: 12, color: "bg-blue-500" },
@@ -525,39 +523,6 @@ export default function BusinessDashboard() {
           </div>
         )}
       </div>
-
-      {/* Job Requests */}
-      {businessJobs.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <Briefcase size={18} className="text-emerald-500" />
-              Job Requests
-            </h2>
-            <a href="/jobs" className="text-sm text-emerald-600 dark:text-emerald-400 font-medium hover:text-emerald-700 dark:hover:text-emerald-300 flex items-center gap-1">
-              View all <ChevronRight size={14} />
-            </a>
-          </div>
-          <div className="space-y-3">
-            {businessJobs.map((job) => (
-              <div key={job.id} className="card p-4 flex items-center gap-3">
-                <span className="text-2xl">{job.categoryIcon}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900 dark:text-white text-sm truncate">{job.title}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{job.budget} · {job.postedAt}</p>
-                </div>
-                <span className={`badge text-[10px] ${
-                  job.status === "pending" ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400" :
-                  job.status === "ongoing" ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400" :
-                  "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400"
-                }`}>
-                  {job.status}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Recent Activity */}
       <div>

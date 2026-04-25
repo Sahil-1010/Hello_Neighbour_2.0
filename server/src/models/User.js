@@ -21,6 +21,9 @@ const userSchema = new mongoose.Schema(
     isOnline:    { type: Boolean, default: false },
     joinedDate:  { type: String, default: () => new Date().getFullYear().toString() },
 
+    // Reference to the Neighborhood document (set during onboarding via /api/neighborhoods)
+    neighborhoodId: { type: mongoose.Schema.Types.ObjectId, ref: "Neighborhood", default: null },
+
     // Geospatial — set during onboarding; used for radius-based queries
     geoLocation: {
       type:        { type: String, enum: ["Point"] },
@@ -39,8 +42,13 @@ const userSchema = new mongoose.Schema(
     category:     { type: String, default: "" },
 
     // Stats
-    connections: { type: Number, default: 0 },
-    postsCount:  { type: Number, default: 0 },
+    connections:    { type: Number, default: 0 },
+    connectionList: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    postsCount:     { type: Number, default: 0 },
+
+    // Moderation
+    blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    mutedUsers:   [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   },
   { timestamps: true }
 );

@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import Navbar from "./Navbar";
 import BottomNav from "./BottomNav";
 import ToastContainer from "./Toast";
-import { Home, Map, MessageCircle, Briefcase, User, Bell, Building2, Settings, Store } from "lucide-react";
+import { Home, Map, MessageCircle, Briefcase, Bell, Building2, Store, Flag } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 
 const sidebarItems = [
@@ -12,8 +12,8 @@ const sidebarItems = [
   { path: "/chat", icon: MessageCircle, label: "Messages" },
   { path: "/jobs", icon: Briefcase, label: "Jobs & Tasks" },
   { path: "/notifications", icon: Bell, label: "Notifications" },
+  { path: "/reports", icon: Flag, label: "Reports" },
   { path: "/business", icon: Building2, label: "My Business", businessOnly: true },
-  { path: "/profile/1", icon: User, label: "My Profile" },
 ];
 
 function Sidebar() {

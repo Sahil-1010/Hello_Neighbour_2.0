@@ -49,21 +49,53 @@ router.post("/", auth, async (req, res) => {
   }
 });
 
-// Toggle like
+// Toggle like (removes dislike if present)
 router.put("/:id/like", auth, async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
     if (!post) return res.status(404).json({ message: "Post not found" });
-    const alreadyLiked = post.likedBy.includes(req.user.id);
+    const alreadyLiked = post.likedBy.map((id) => id.toString()).includes(req.user.id);
     if (alreadyLiked) {
       post.likedBy.pull(req.user.id);
       post.likes = Math.max(0, post.likes - 1);
     } else {
       post.likedBy.push(req.user.id);
       post.likes += 1;
+      // Remove dislike if switching to like
+      const wasDisliked = post.dislikedBy.map((id) => id.toString()).includes(req.user.id);
+      if (wasDisliked) {
+        post.dislikedBy.pull(req.user.id);
+        post.dislikes = Math.max(0, post.dislikes - 1);
+      }
     }
     await post.save();
-    res.json({ likes: post.likes, isLiked: !alreadyLiked });
+    res.json({ likes: post.likes, isLiked: !alreadyLiked, dislikes: post.dislikes, isDisliked: false });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Toggle dislike (removes like if present)
+router.put("/:id/dislike", auth, async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: "Post not found" });
+    const alreadyDisliked = post.dislikedBy.map((id) => id.toString()).includes(req.user.id);
+    if (alreadyDisliked) {
+      post.dislikedBy.pull(req.user.id);
+      post.dislikes = Math.max(0, post.dislikes - 1);
+    } else {
+      post.dislikedBy.push(req.user.id);
+      post.dislikes += 1;
+      // Remove like if switching to dislike
+      const wasLiked = post.likedBy.map((id) => id.toString()).includes(req.user.id);
+      if (wasLiked) {
+        post.likedBy.pull(req.user.id);
+        post.likes = Math.max(0, post.likes - 1);
+      }
+    }
+    await post.save();
+    res.json({ dislikes: post.dislikes, isDisliked: !alreadyDisliked, likes: post.likes, isLiked: false });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -113,12 +145,15 @@ function hasValidGeo(geo) {
 
 function formatPost(post, userId) {
   const obj = post.toObject ? post.toObject() : post;
+  const author = obj.author ? { ...obj.author, id: obj.author._id?.toString() } : obj.author;
   return {
     ...obj,
+    author,
     id: obj._id?.toString(),
-    isLiked: obj.likedBy?.some((id) => id.toString() === userId),
-    comments: obj.commentList?.length || 0,
-    timestamp: timeAgo(obj.createdAt),
+    isLiked:    obj.likedBy?.some((id) => id.toString() === userId),
+    isDisliked: obj.dislikedBy?.some((id) => id.toString() === userId),
+    comments:   obj.commentList?.length || 0,
+    timestamp:  timeAgo(obj.createdAt),
   };
 }
 

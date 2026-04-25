@@ -17,7 +17,10 @@ app.use("/api/posts", require("./src/routes/posts"));
 app.use("/api/jobs", require("./src/routes/jobs"));
 app.use("/api/businesses", require("./src/routes/businesses"));
 app.use("/api/notifications", require("./src/routes/notifications"));
+app.use("/api/neighborhoods", require("./src/routes/neighborhoods"));
 app.use("/api/messages", require("./src/routes/messages"));
+app.use("/api/reports", require("./src/routes/reports"));
+app.use("/api/search", require("./src/routes/search"));
 
 app.use((err, req, res, next) => {
   console.error(err.stack);

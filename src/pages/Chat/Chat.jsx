@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Search, Phone, Video, MoreVertical, ArrowLeft, Image, Smile, ShieldAlert, X } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+
+const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='20' fill='%23e2e8f0'/%3E%3Ccircle cx='20' cy='16' r='7' fill='%2394a3b8'/%3E%3Cellipse cx='20' cy='34' rx='12' ry='9' fill='%2394a3b8'/%3E%3C/svg%3E";
+import { Send, Search, MoreVertical, ArrowLeft, Image, Smile, ShieldAlert, X } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 
 const roleColors = {
@@ -78,7 +81,7 @@ function ConversationItem({ conv, isActive, onClick }) {
       }`}
     >
       <div className="relative flex-shrink-0">
-        <img src={conv.user.avatar} alt={conv.user.name} className="w-12 h-12 rounded-full object-cover" />
+        <img src={conv.user.avatar || DEFAULT_AVATAR} alt={conv.user.name} onError={(e) => { e.currentTarget.src = DEFAULT_AVATAR; }} className="w-12 h-12 rounded-full object-cover" />
         {conv.user.isOnline && <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-white dark:border-gray-800" />}
       </div>
       <div className="flex-1 min-w-0">
@@ -120,7 +123,8 @@ function MessageBubble({ message, isOwn, prevOwn }) {
 }
 
 export default function Chat() {
-  const { user, conversations, messages, sendMessage, loadMessages } = useApp();
+  const { user, conversations, messages, sendMessage, loadMessages, startConversation } = useApp();
+  const [searchParams] = useSearchParams();
   const [activeConv, setActiveConv] = useState(null);
   const [inputText, setInputText] = useState("");
   const [search, setSearch] = useState("");
@@ -135,6 +139,23 @@ export default function Chat() {
       setShowPrivacyModal(true);
     }
   }, []);
+
+  // Auto-open conversation when arriving from a profile page (?userId=X)
+  useEffect(() => {
+    const targetUserId = searchParams.get("userId");
+    if (!targetUserId || conversations.length === 0) return;
+
+    const existing = conversations.find((c) => c.user?._id?.toString() === targetUserId || c.user?.id === targetUserId);
+    if (existing) {
+      handleSelectConv(existing);
+      return;
+    }
+    // Create new conversation if none exists yet
+    startConversation(targetUserId)
+      .then((conv) => handleSelectConv(conv))
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, conversations]);
 
   const handleAcknowledgePrivacy = () => {
     sessionStorage.setItem("hn_chat_privacy_ack", "1");
@@ -218,7 +239,7 @@ export default function Chat() {
                 <ArrowLeft size={20} />
               </button>
               <div className="relative">
-                <img src={activeConv.user.avatar} alt={activeConv.user.name} className="w-10 h-10 rounded-full object-cover" />
+                <img src={activeConv.user.avatar || DEFAULT_AVATAR} alt={activeConv.user.name} onError={(e) => { e.currentTarget.src = DEFAULT_AVATAR; }} className="w-10 h-10 rounded-full object-cover" />
                 {activeConv.user.isOnline && <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white dark:border-gray-800" />}
               </div>
               <div className="flex-1 min-w-0">
@@ -231,8 +252,6 @@ export default function Chat() {
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                <button className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><Phone size={18} /></button>
-                <button className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><Video size={18} /></button>
                 <button className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><MoreVertical size={18} /></button>
               </div>
             </div>

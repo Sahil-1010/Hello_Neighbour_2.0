@@ -24,7 +24,8 @@ const postSchema = new mongoose.Schema(
 
     likes:       { type: Number, default: 0 },
     likedBy:     [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    reactions:   { type: Map, of: Number, default: {} },
+    dislikes:    { type: Number, default: 0 },
+    dislikedBy:  [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     commentList: [commentSchema],
   },
   { timestamps: true }

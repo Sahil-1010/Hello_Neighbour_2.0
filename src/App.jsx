@@ -12,6 +12,7 @@ import Jobs from "./pages/Jobs/Jobs";
 import BusinessDashboard from "./pages/Business/BusinessDashboard";
 import Businesses from "./pages/Businesses/Businesses";
 import Notifications from "./pages/Notifications/Notifications";
+import Reports from "./pages/Reports/Reports";
 
 function LoadingScreen() {
   return (
@@ -80,6 +81,7 @@ export default function App() {
         <Route path="/businesses" element={<ProtectedRoute><Businesses /></ProtectedRoute>} />
         <Route path="/business" element={<ProtectedRoute requiredRole="business"><BusinessDashboard /></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+        <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

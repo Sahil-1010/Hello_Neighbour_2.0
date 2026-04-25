@@ -3,11 +3,6 @@ import { api } from "../services/api";
 
 const AppContext = createContext();
 
-const neighborhoods = [
-  "Downtown Heights", "Riverside Park", "Maple Grove", "Sunset Hills", "Harbor View",
-  "Oak Valley", "Northgate", "Westfield", "Eastside Commons", "Greenwood",
-];
-
 export function AppProvider({ children }) {
   // ── Auth ──────────────────────────────────────────────────────────────────
   const [user, setUser] = useState(null);
@@ -39,11 +34,14 @@ export function AppProvider({ children }) {
   // ── Content ───────────────────────────────────────────────────────────────
   const [posts, setPosts] = useState([]);
   const [jobs, setJobs] = useState([]);
+  const [myJobs, setMyJobs] = useState([]);
   const [businesses, setBusinesses] = useState([]);
   const [nearbyUsers, setNearbyUsers] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [messages, setMessages] = useState({});
+  const [neighborhoodsList, setNeighborhoodsList] = useState([]);
+  const [offers, setOffers] = useState([]);
 
   // Derived auth state
   const isAuthenticated = !!user;
@@ -71,9 +69,10 @@ export function AppProvider({ children }) {
 
     api.get(`/posts?neighborhood=${hood}`).then(setPosts).catch(() => {});
     api.get(`/jobs?neighborhood=${hood}`).then(setJobs).catch(() => {});
-    // Businesses + nearby users both use geospatial radius when coordinates are available
     api.get(`/businesses?neighborhood=${hood}${geoParam}`).then(setBusinesses).catch(() => {});
-    api.get(`/users?neighborhood=${hood}${geoParam}`).then(setNearbyUsers).catch(() => {});
+    api.get(`/businesses/offers?neighborhood=${hood}`).then(setOffers).catch(() => {});
+    // Nearby users: server now filters by neighborhoodId — no geo param needed
+    api.get(`/users?neighborhood=${hood}`).then(setNearbyUsers).catch(() => {});
     api.get("/notifications").then(setNotifications).catch(() => {});
     api.get("/messages/conversations").then(setConversations).catch(() => {});
   }, [user?.neighborhood, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -118,11 +117,14 @@ export function AppProvider({ children }) {
     setUser(null);
     setPosts([]);
     setJobs([]);
+    setMyJobs([]);
     setBusinesses([]);
     setNearbyUsers([]);
     setNotifications([]);
     setConversations([]);
     setMessages({});
+    setNeighborhoodsList([]);
+    setOffers([]);
   };
 
   // coords: { lat, lng } — collected from browser GPS or mock during onboarding
@@ -138,13 +140,76 @@ export function AppProvider({ children }) {
 
   const switchRole = async (role) => {
     const data = await api.put(`/users/${user.id}`, { role });
+    // Backend returns a new JWT token when role changes so requireRole() guards stay consistent
+    if (data.token) {
+      localStorage.setItem("hn_token", data.token);
+    }
     setUser((prev) => ({ ...prev, role: data.role }));
     const label = role === "normal" ? "Community Member" : role === "worker" ? "Worker" : "Business Owner";
     addToast({ type: "success", message: `Switched to ${label} role` });
   };
 
-  const switchNeighborhood = (name) => {
-    addToast({ type: "info", message: `Switched to ${name}` });
+  // Switch to a different neighborhood: update API + refetch all content
+  const switchNeighborhood = async (neighborhoodId, neighborhoodName) => {
+    try {
+      await api.post(`/neighborhoods/${neighborhoodId}/join`, {
+        lat: user?.geoLocation?.coordinates?.[1],
+        lng: user?.geoLocation?.coordinates?.[0],
+      });
+      const fresh = await api.get("/auth/me");
+      setUser(fresh);
+      addToast({ type: "success", message: `Switched to ${neighborhoodName}` });
+    } catch (err) {
+      addToast({ type: "error", message: err.message || "Failed to switch neighborhood" });
+    }
+  };
+
+  // Fetch a single user by ID (for profile page)
+  const fetchUserById = async (id) => {
+    return await api.get(`/users/${id}`);
+  };
+
+  // Toggle connection with another user; updates local connectionList state
+  const connectUser = async (targetId) => {
+    const data = await api.post(`/users/${targetId}/connect`, {});
+    setUser((prev) => {
+      if (!prev) return prev;
+      const list = prev.connectionList || [];
+      if (data.connected) {
+        return { ...prev, connectionList: [...list, targetId], connections: (prev.connections || 0) + 1 };
+      }
+      return {
+        ...prev,
+        connectionList: list.filter((c) => c.toString() !== targetId),
+        connections: Math.max(0, (prev.connections || 0) - 1),
+      };
+    });
+    return data;
+  };
+
+  // ── Neighborhood actions ──────────────────────────────────────────────────
+  const fetchNeighborhoods = async ({ lat, lng, search } = {}) => {
+    const params = new URLSearchParams();
+    if (lat !== undefined && lng !== undefined) { params.set("lat", lat); params.set("lng", lng); }
+    if (search) params.set("search", search);
+    const data = await api.get(`/neighborhoods?${params.toString()}`);
+    setNeighborhoodsList(data);
+    return data;
+  };
+
+  const createNeighborhood = async (name, { lat, lng, location } = {}) => {
+    const data = await api.post("/neighborhoods", { name, lat, lng, location });
+    setNeighborhoodsList((prev) => [data, ...prev]);
+    const fresh = await api.get("/auth/me");
+    setUser(fresh);
+    return data;
+  };
+
+  const joinNeighborhood = async (id, { lat, lng, location } = {}) => {
+    const data = await api.post(`/neighborhoods/${id}/join`, { lat, lng, location });
+    const fresh = await api.get("/auth/me");
+    setUser(fresh);
+    return data;
   };
 
   // ── Business actions ──────────────────────────────────────────────────────
@@ -164,19 +229,42 @@ export function AppProvider({ children }) {
   };
 
   const toggleLike = async (postId) => {
-    // Optimistic update
     setPosts((prev) =>
       prev.map((p) =>
-        p.id === postId ? { ...p, isLiked: !p.isLiked, likes: p.isLiked ? p.likes - 1 : p.likes + 1 } : p
+        p.id === postId
+          ? { ...p, isLiked: !p.isLiked, likes: p.isLiked ? p.likes - 1 : p.likes + 1, isDisliked: false }
+          : p
       )
     );
     try {
       await api.put(`/posts/${postId}/like`);
     } catch {
-      // Revert on failure
       setPosts((prev) =>
         prev.map((p) =>
-          p.id === postId ? { ...p, isLiked: !p.isLiked, likes: p.isLiked ? p.likes - 1 : p.likes + 1 } : p
+          p.id === postId
+            ? { ...p, isLiked: !p.isLiked, likes: p.isLiked ? p.likes - 1 : p.likes + 1 }
+            : p
+        )
+      );
+    }
+  };
+
+  const toggleDislike = async (postId) => {
+    setPosts((prev) =>
+      prev.map((p) =>
+        p.id === postId
+          ? { ...p, isDisliked: !p.isDisliked, dislikes: (p.isDisliked ? (p.dislikes || 1) - 1 : (p.dislikes || 0) + 1), isLiked: false, likes: p.isLiked ? p.likes - 1 : p.likes }
+          : p
+      )
+    );
+    try {
+      await api.put(`/posts/${postId}/dislike`);
+    } catch {
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === postId
+            ? { ...p, isDisliked: !p.isDisliked, dislikes: (p.isDisliked ? (p.dislikes || 1) - 1 : (p.dislikes || 0) + 1) }
+            : p
         )
       );
     }
@@ -202,15 +290,84 @@ export function AppProvider({ children }) {
 
   const applyForJob = async (jobId) => {
     await api.put(`/jobs/${jobId}/apply`);
-    setJobs((prev) => prev.map((j) => j.id === jobId ? { ...j, applicants: j.applicants + 1 } : j));
+    setJobs((prev) => prev.map((j) => j.id === jobId ? { ...j, applicants: (j.applicants || 0) + 1, hasApplied: true } : j));
     addToast({ type: "info", message: "Application submitted successfully!" });
   };
 
-  const updateJobStatus = async (jobId, status) => {
-    await api.put(`/jobs/${jobId}/status`, { status });
-    setJobs((prev) => prev.map((j) => j.id === jobId ? { ...j, status } : j));
+  const updateJobStatus = async (jobId, status, assignedTo) => {
+    const body = { status };
+    if (assignedTo) body.assignedTo = assignedTo;
+    const updated = await api.put(`/jobs/${jobId}/status`, body);
+    setJobs((prev) => prev.map((j) => j.id === jobId ? updated : j));
+    setMyJobs((prev) => prev.map((j) => j.id === jobId ? updated : j));
     const msg = { ongoing: "Job started! 🚀", completed: "Job marked as completed! ✅" };
     if (msg[status]) addToast({ type: "success", message: msg[status] });
+  };
+
+  const loadMyJobs = async () => {
+    const data = await api.get("/jobs/my");
+    setMyJobs(data);
+    return data;
+  };
+
+  const addJobComment = async (jobId, text) => {
+    const updated = await api.post(`/jobs/${jobId}/comment`, { text });
+    setJobs((prev) => prev.map((j) => j.id === jobId ? updated : j));
+    setMyJobs((prev) => prev.map((j) => j.id === jobId ? updated : j));
+    return updated;
+  };
+
+  const closeJob = async (jobId) => {
+    const updated = await api.put(`/jobs/${jobId}/close`);
+    setJobs((prev) => prev.map((j) => j.id === jobId ? updated : j));
+    setMyJobs((prev) => prev.map((j) => j.id === jobId ? updated : j));
+    addToast({ type: "info", message: "Job closed" });
+  };
+
+  const leaveNeighborhood = async (neighborhoodId) => {
+    await api.post(`/neighborhoods/${neighborhoodId}/leave`);
+    const fresh = await api.get("/auth/me");
+    setUser(fresh);
+    setPosts([]);
+    setJobs([]);
+    setBusinesses([]);
+    setNearbyUsers([]);
+  };
+
+  // ── Moderation actions ────────────────────────────────────────────────────
+  const reportContent = async ({ targetId, type, reason, description }) => {
+    const data = await api.post("/reports", { targetId, type, reason, description });
+    addToast({ type: "success", message: "Report submitted. Thank you for keeping the community safe." });
+    return data;
+  };
+
+  const blockUser = async (targetId) => {
+    const data = await api.post(`/users/${targetId}/block`, {});
+    setUser((prev) => {
+      if (!prev) return prev;
+      const list = prev.blockedUsers || [];
+      if (data.blocked) return { ...prev, blockedUsers: [...list, targetId] };
+      return { ...prev, blockedUsers: list.filter((id) => id !== targetId) };
+    });
+    addToast({ type: "info", message: data.blocked ? "User blocked" : "User unblocked" });
+    return data;
+  };
+
+  const muteUser = async (targetId) => {
+    const data = await api.post(`/users/${targetId}/mute`, {});
+    setUser((prev) => {
+      if (!prev) return prev;
+      const list = prev.mutedUsers || [];
+      if (data.muted) return { ...prev, mutedUsers: [...list, targetId] };
+      return { ...prev, mutedUsers: list.filter((id) => id !== targetId) };
+    });
+    addToast({ type: "info", message: data.muted ? "User muted" : "User unmuted" });
+    return data;
+  };
+
+  const searchContent = async (q) => {
+    if (!q || q.trim().length < 2) return { users: [], businesses: [], posts: [] };
+    return await api.get(`/search?q=${encodeURIComponent(q.trim())}`);
   };
 
   // ── Notification actions ──────────────────────────────────────────────────
@@ -267,14 +424,16 @@ export function AppProvider({ children }) {
     <AppContext.Provider
       value={{
         // auth
-        user, isAuthenticated, onboardingComplete, authLoading,
+        user, setUser, isAuthenticated, onboardingComplete, authLoading,
         login, signup, verifyOtp, resendOtp, logout, completeOnboarding, switchRole,
         // theme
         isDarkMode, toggleDarkMode,
         // neighborhood
-        currentNeighborhood, switchNeighborhood, neighborhoods,
+        currentNeighborhood, switchNeighborhood, leaveNeighborhood,
+        neighborhoodsList, fetchNeighborhoods, createNeighborhood, joinNeighborhood,
+        fetchUserById, connectUser,
         // data
-        posts, jobs, businesses, nearbyUsers, notifications, conversations, messages,
+        posts, jobs, myJobs, businesses, nearbyUsers, notifications, conversations, messages, offers,
         // aliases
         filteredPosts, filteredJobs, filteredBusinesses,
         // counts
@@ -282,9 +441,11 @@ export function AppProvider({ children }) {
         // business actions
         addBusiness, updateBusiness,
         // post actions
-        addPost, toggleLike, addComment,
+        addPost, toggleLike, toggleDislike, addComment,
+        // moderation
+        reportContent, blockUser, muteUser, searchContent,
         // job actions
-        addJob, applyForJob, updateJobStatus,
+        addJob, applyForJob, updateJobStatus, loadMyJobs, addJobComment, closeJob,
         // notification actions
         markNotificationRead, markAllRead,
         // chat

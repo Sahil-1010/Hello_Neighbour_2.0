@@ -1,14 +1,18 @@
-import { Bell, Briefcase, Heart, MessageCircle, MapPin, CheckCircle, Check } from "lucide-react";
+import { Bell, Briefcase, Heart, MessageCircle, MapPin, CheckCircle, Check, UserCheck, Tag, Flag } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
 
 const notifIcons = {
-  job_request: { icon: Briefcase, color: "bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400" },
-  reaction: { icon: Heart, color: "bg-red-100 text-red-500 dark:bg-red-900/40 dark:text-red-400" },
-  comment: { icon: MessageCircle, color: "bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-400" },
-  message: { icon: MessageCircle, color: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400" },
-  job_completed: { icon: CheckCircle, color: "bg-green-100 text-green-600 dark:bg-green-900/40 dark:text-green-400" },
-  nearby: { icon: MapPin, color: "bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400" },
+  job_request:  { icon: Briefcase,   color: "bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400" },
+  job_applied:  { icon: Briefcase,   color: "bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400" },
+  job_assigned: { icon: UserCheck,   color: "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400" },
+  job_completed:{ icon: CheckCircle, color: "bg-green-100 text-green-600 dark:bg-green-900/40 dark:text-green-400" },
+  offer:        { icon: Tag,         color: "bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-400" },
+  reaction:     { icon: Heart,       color: "bg-red-100 text-red-500 dark:bg-red-900/40 dark:text-red-400" },
+  comment:      { icon: MessageCircle, color: "bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-400" },
+  message:      { icon: MessageCircle, color: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400" },
+  nearby:       { icon: MapPin,      color: "bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400" },
+  report:       { icon: Flag,        color: "bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400" },
 };
 
 function NotifItem({ notif, onRead }) {

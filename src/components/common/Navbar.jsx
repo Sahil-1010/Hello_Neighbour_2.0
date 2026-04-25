@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+
+const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='20' fill='%23e2e8f0'/%3E%3Ccircle cx='20' cy='16' r='7' fill='%2394a3b8'/%3E%3Cellipse cx='20' cy='34' rx='12' ry='9' fill='%2394a3b8'/%3E%3C/svg%3E";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Bell, Search, MapPin, ChevronDown, LogOut, User, Settings,
@@ -13,28 +15,47 @@ const roleLabels = {
 };
 
 function NeighborhoodDropdown({ onClose }) {
-  const { currentNeighborhood, switchNeighborhood, neighborhoods } = useApp();
+  const { currentNeighborhood, switchNeighborhood, neighborhoodsList, fetchNeighborhoods, user } = useApp();
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (neighborhoodsList.length === 0) {
+      setLoading(true);
+      const coords = user?.geoLocation?.coordinates;
+      const params = coords?.length === 2 && (coords[0] !== 0 || coords[1] !== 0)
+        ? { lat: coords[1], lng: coords[0] }
+        : {};
+      fetchNeighborhoods(params).finally(() => setLoading(false));
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div className="absolute left-0 top-full mt-2 w-64 bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 py-2 z-30 animate-fade-in">
       <p className="px-4 py-2 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">
         Switch Neighborhood
       </p>
-      {neighborhoods.map((name) => {
-        const isActive = name === currentNeighborhood;
-        return (
-          <button
-            key={name}
-            onClick={() => { switchNeighborhood(name); onClose(); }}
-            className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-          >
-            <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center text-sm">🏘️</div>
-            <p className={`flex-1 text-left text-sm font-medium ${isActive ? "text-emerald-600 dark:text-emerald-400" : "text-gray-800 dark:text-gray-200"}`}>
-              {name}
-            </p>
-            {isActive && <Check size={15} className="text-emerald-500 flex-shrink-0" />}
-          </button>
-        );
-      })}
+      {loading ? (
+        <div className="px-4 py-3 text-xs text-gray-400 dark:text-gray-500 text-center">Loading...</div>
+      ) : neighborhoodsList.length === 0 ? (
+        <div className="px-4 py-3 text-xs text-gray-400 dark:text-gray-500 text-center">No neighborhoods found</div>
+      ) : (
+        neighborhoodsList.map((n) => {
+          const isActive = n.name === currentNeighborhood;
+          return (
+            <button
+              key={n.id}
+              onClick={() => { switchNeighborhood(n.id, n.name); onClose(); }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center text-sm">🏘️</div>
+              <p className={`flex-1 text-left text-sm font-medium ${isActive ? "text-emerald-600 dark:text-emerald-400" : "text-gray-800 dark:text-gray-200"}`}>
+                {n.name}
+              </p>
+              {isActive && <Check size={15} className="text-emerald-500 flex-shrink-0" />}
+            </button>
+          );
+        })
+      )}
     </div>
   );
 }
@@ -66,6 +87,98 @@ function RoleSwitcher({ onClose }) {
           {user?.role === r.value && <Check size={14} className="ml-auto" />}
         </button>
       ))}
+    </div>
+  );
+}
+
+const DEFAULT_AVATAR_INLINE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='20' fill='%23e2e8f0'/%3E%3Ccircle cx='20' cy='16' r='7' fill='%2394a3b8'/%3E%3Cellipse cx='20' cy='34' rx='12' ry='9' fill='%2394a3b8'/%3E%3C/svg%3E";
+
+function SearchBar({ isMobile }) {
+  const { searchContent } = useApp();
+  const navigate = useNavigate();
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState(null);
+  const [open, setOpen] = useState(false);
+  const timerRef = useRef(null);
+
+  const doSearch = useCallback(async (q) => {
+    if (!q || q.trim().length < 2) { setResults(null); return; }
+    const data = await searchContent(q).catch(() => null);
+    if (data) { setResults(data); setOpen(true); }
+  }, [searchContent]);
+
+  const handleChange = (e) => {
+    const q = e.target.value;
+    setQuery(q);
+    clearTimeout(timerRef.current);
+    if (q.trim().length < 2) { setResults(null); setOpen(false); return; }
+    timerRef.current = setTimeout(() => doSearch(q), 350);
+  };
+
+  const total = results ? results.users.length + results.businesses.length + results.posts.length : 0;
+
+  return (
+    <div className={`relative ${isMobile ? "flex-1" : "flex-1 max-w-xs hidden md:block"}`}>
+      <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+      <input
+        type="text"
+        value={query}
+        onChange={handleChange}
+        onFocus={() => results && setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 200)}
+        placeholder="Search neighbors, jobs, posts..."
+        className="w-full pl-9 pr-4 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-all"
+      />
+      {open && results && total > 0 && (
+        <div className="absolute top-full mt-1 left-0 right-0 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 py-2 z-50 max-h-80 overflow-y-auto">
+          {results.users.length > 0 && (
+            <>
+              <p className="px-3 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">People</p>
+              {results.users.map((u) => (
+                <button key={u.id} onClick={() => { navigate(`/profile/${u.id}`); setOpen(false); setQuery(""); }}
+                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-left">
+                  <img src={u.avatar || DEFAULT_AVATAR_INLINE} alt={u.name} onError={(e) => { e.currentTarget.src = DEFAULT_AVATAR_INLINE; }} className="w-7 h-7 rounded-full object-cover" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{u.name}</p>
+                    <p className="text-xs text-gray-400">{u.role}</p>
+                  </div>
+                </button>
+              ))}
+            </>
+          )}
+          {results.businesses.length > 0 && (
+            <>
+              <p className="px-3 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-1">Businesses</p>
+              {results.businesses.map((b) => (
+                <button key={b.id} onClick={() => { navigate(`/businesses`); setOpen(false); setQuery(""); }}
+                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-left">
+                  <span className="text-xl">{b.categoryIcon}</span>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{b.name}</p>
+                    <p className="text-xs text-gray-400">{b.category}</p>
+                  </div>
+                </button>
+              ))}
+            </>
+          )}
+          {results.posts.length > 0 && (
+            <>
+              <p className="px-3 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-1">Posts</p>
+              {results.posts.map((p) => (
+                <button key={p.id} onClick={() => { navigate("/"); setOpen(false); setQuery(""); }}
+                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-left">
+                  <p className="text-xs text-gray-700 dark:text-gray-300 truncate">{p.content?.slice(0, 80)}</p>
+                </button>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+      {open && results && total === 0 && (
+        <div className="absolute top-full mt-1 left-0 right-0 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 py-4 z-50 text-center">
+          <p className="text-xs text-gray-400 dark:text-gray-500">No results found</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -114,16 +227,7 @@ export default function Navbar() {
         </div>
 
         {/* Search */}
-        <div className="flex-1 max-w-xs hidden md:block">
-          <div className="relative">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search neighbors, jobs, posts..."
-              className="w-full pl-9 pr-4 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-all"
-            />
-          </div>
-        </div>
+        <SearchBar />
 
         <div className="flex items-center gap-1 ml-auto">
           {/* Mobile search */}
@@ -165,7 +269,7 @@ export default function Navbar() {
               onClick={() => { setShowUserMenu(!showUserMenu); setShowNeighborhood(false); }}
               className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
-              <img src={user?.avatar} alt={user?.name} className="w-8 h-8 rounded-full object-cover ring-2 ring-emerald-500/20" />
+              <img src={user?.avatar || DEFAULT_AVATAR} alt={user?.name} onError={(e) => { e.currentTarget.src = DEFAULT_AVATAR; }} className="w-8 h-8 rounded-full object-cover ring-2 ring-emerald-500/20" />
               <ChevronDown size={14} className={`text-gray-400 hidden sm:block transition-transform ${showUserMenu ? "rotate-180" : ""}`} />
             </button>
 
@@ -176,7 +280,7 @@ export default function Navbar() {
                   {/* User info */}
                   <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
                     <p className="font-semibold text-gray-900 dark:text-white text-sm">{user?.name}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{user?.email}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{user?.contact}</p>
                     <span className={`badge mt-1.5 ${rl.color}`}>
                       {rl.emoji} {rl.label}
                     </span>
@@ -229,28 +333,7 @@ export default function Navbar() {
       {/* Mobile search */}
       {showSearch && (
         <div className="px-4 pb-3 md:hidden">
-          <div className="relative">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              autoFocus
-              type="text"
-              placeholder="Search neighbors, jobs, posts..."
-              className="w-full pl-9 pr-4 py-2.5 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 text-gray-900 dark:text-gray-100"
-            />
-          </div>
-          {/* Mobile neighborhood selector */}
-          <div className="mt-2 flex items-center gap-2 overflow-x-auto hide-scrollbar">
-            {[{ name: "Downtown Heights" }, { name: "Riverside Gardens" }, { name: "Oak Park District" }].map((h) => (
-              <button
-                key={h.name}
-                onClick={() => { setShowSearch(false); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-700 text-xs font-medium text-gray-600 dark:text-gray-300 whitespace-nowrap flex-shrink-0"
-              >
-                <MapPin size={11} className="text-emerald-500" />
-                {h.name}
-              </button>
-            ))}
-          </div>
+          <SearchBar isMobile />
         </div>
       )}
     </header>
