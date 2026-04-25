@@ -8,13 +8,27 @@ const commentSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 }, { timestamps: true });
 
+const responseSchema = new mongoose.Schema({
+  businessId:      { type: mongoose.Schema.Types.ObjectId, ref: "Business", required: true },
+  businessOwnerId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  message:         { type: String, default: "" },
+  proposedBudget:  { type: String, default: "" },
+  selectedItems:   [String],
+  status:          { type: String, enum: ["pending", "accepted", "declined"], default: "pending" },
+}, { timestamps: true });
+
 const postSchema = new mongoose.Schema(
   {
-    author:       { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    content:      { type: String, required: true },
-    type:         { type: String, enum: ["general", "warning", "help", "offer"], default: "general" },
+    author:          { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    content:         { type: String, required: true },
+    type:            { type: String, enum: ["general", "warning", "help", "offer", "order"], default: "general" },
+    orderCategories: [String],
+    orderBudget:     { type: String, default: "" },
+    orderItems:      [String],
+    responses:       [responseSchema],
     image:        { type: String, default: null },
     neighborhood: { type: String, required: true },
+
 
     // Geospatial — copied from author's location at post-creation time
     geoLocation: {

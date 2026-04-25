@@ -1,23 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Search, Users, ChevronRight, Check, Navigation } from "lucide-react";
+import { MapPin, Search, Users, ChevronRight, Check, Navigation, Plus, Loader } from "lucide-react";
 import { useApp } from "../../context/AppContext";
-import { neighborhoods } from "../../data/mockData";
-
-// Mock coordinates for each neighborhood (NYC area) — used as fallback when
-// browser GPS is unavailable or user skips location detection.
-const NEIGHBORHOOD_COORDS = {
-  "Downtown Heights":  { lat: 40.7128, lng: -74.0060 },
-  "Riverside Park":    { lat: 40.8005, lng: -73.9706 },
-  "Maple Grove":       { lat: 40.7282, lng: -73.7949 },
-  "Sunset Hills":      { lat: 40.6501, lng: -73.9496 },
-  "Harbor View":       { lat: 40.6892, lng: -74.0445 },
-  "Oak Valley":        { lat: 40.7614, lng: -73.9776 },
-  "Northgate":         { lat: 40.7831, lng: -73.9712 },
-  "Westfield":         { lat: 40.7282, lng: -74.0776 },
-  "Eastside Commons":  { lat: 40.7282, lng: -73.9146 },
-  "Greenwood":         { lat: 40.6501, lng: -73.9776 },
-};
 
 const mapPins = [
   { id: 1, x: 30, y: 40, label: "You", color: "bg-emerald-500", isYou: true },
@@ -29,36 +13,38 @@ const mapPins = [
 ];
 
 export default function Onboarding() {
-  const { user, completeOnboarding } = useApp();
+  const { user, fetchNeighborhoods, joinNeighborhood, createNeighborhood, addToast } = useApp();
   const navigate = useNavigate();
 
   const [step, setStep] = useState(1);
   const [location, setLocation] = useState("");
-  const [coords, setCoords] = useState(null);           // { lat, lng }
+  const [coords, setCoords] = useState(null);
   const [locating, setLocating] = useState(false);
   const [located, setLocated] = useState(false);
-  const [gpsSource, setGpsSource] = useState(null);    // "gps" | "mock"
+  const [gpsSource, setGpsSource] = useState(null);
+
+  const [neighborhoodsList, setNeighborhoodsList] = useState([]);
+  const [loadingNeighborhoods, setLoadingNeighborhoods] = useState(false);
   const [selectedNeighborhood, setSelectedNeighborhood] = useState(null);
   const [searchNeighborhood, setSearchNeighborhood] = useState("");
   const [finishing, setFinishing] = useState(false);
 
-  // Try real browser GPS first; fall back to mock coords for the first neighborhood
+  const [showCreate, setShowCreate] = useState(false);
+  const [newNeighborhoodName, setNewNeighborhoodName] = useState("");
+  const [creating, setCreating] = useState(false);
+
   const handleDetectLocation = () => {
     setLocating(true);
 
     const applyMock = () => {
-      const mockCoords = NEIGHBORHOOD_COORDS["Downtown Heights"];
-      setCoords(mockCoords);
+      setCoords({ lat: 40.7128, lng: -74.0060 });
       setLocation("Approximate Location (GPS unavailable)");
       setGpsSource("mock");
       setLocated(true);
       setLocating(false);
     };
 
-    if (!navigator.geolocation) {
-      applyMock();
-      return;
-    }
+    if (!navigator.geolocation) { applyMock(); return; }
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -73,33 +59,67 @@ export default function Onboarding() {
     );
   };
 
-  // When a neighborhood is chosen, pre-fill mock coords if GPS was not used
-  const handleSelectNeighborhood = (hood) => {
-    setSelectedNeighborhood(hood);
-    if (!coords || gpsSource === "mock") {
-      setCoords(NEIGHBORHOOD_COORDS[hood.name] || NEIGHBORHOOD_COORDS["Downtown Heights"]);
-    }
-  };
+  // Load neighborhoods from API when entering step 2
+  useEffect(() => {
+    if (step !== 2) return;
+    setLoadingNeighborhoods(true);
+    fetchNeighborhoods(coords ? { lat: coords.lat, lng: coords.lng } : {})
+      .then(setNeighborhoodsList)
+      .catch(() => {})
+      .finally(() => setLoadingNeighborhoods(false));
+  }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Search debounce
+  useEffect(() => {
+    if (step !== 2) return;
+    const timer = setTimeout(() => {
+      setLoadingNeighborhoods(true);
+      fetchNeighborhoods(searchNeighborhood
+        ? { search: searchNeighborhood }
+        : coords ? { lat: coords.lat, lng: coords.lng } : {}
+      )
+        .then(setNeighborhoodsList)
+        .catch(() => {})
+        .finally(() => setLoadingNeighborhoods(false));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchNeighborhood]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFinish = async () => {
     if (!selectedNeighborhood) return;
     setFinishing(true);
-    const finalCoords = coords || NEIGHBORHOOD_COORDS[selectedNeighborhood.name];
     try {
-      await completeOnboarding(
-        selectedNeighborhood.name,
-        location || "Approximate Location",
-        finalCoords
-      );
+      await joinNeighborhood(selectedNeighborhood.id, {
+        lat: coords?.lat,
+        lng: coords?.lng,
+        location: location || "Approximate Location",
+      });
       navigate("/");
+    } catch (err) {
+      addToast({ type: "error", message: err.message || "Failed to join neighborhood" });
     } finally {
       setFinishing(false);
     }
   };
 
-  const filteredNeighborhoods = neighborhoods.filter((n) =>
-    n.name.toLowerCase().includes(searchNeighborhood.toLowerCase())
-  );
+  const handleCreateNeighborhood = async () => {
+    if (!newNeighborhoodName.trim()) return;
+    setCreating(true);
+    try {
+      await createNeighborhood(newNeighborhoodName.trim(), {
+        lat: coords?.lat,
+        lng: coords?.lng,
+        location: location || "Approximate Location",
+      });
+      navigate("/");
+    } catch (err) {
+      addToast({ type: "error", message: err.message || "Failed to create neighborhood" });
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const filteredList = neighborhoodsList;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
@@ -141,7 +161,6 @@ export default function Onboarding() {
                 </p>
               </div>
 
-              {/* Simulated map */}
               <div className="card overflow-hidden mb-6">
                 <div className="relative h-56 bg-gradient-to-br from-emerald-50 dark:from-gray-700 to-teal-50 dark:to-gray-800 border-b border-gray-100 dark:border-gray-700">
                   <div className="absolute inset-0 opacity-20 dark:opacity-10">
@@ -152,12 +171,10 @@ export default function Onboarding() {
                       <div key={i} className="absolute border-gray-400" style={{ top: `${i * 25}%`, left: 0, right: 0, borderTopWidth: 1 }} />
                     ))}
                   </div>
-
                   {located && (
                     <div className="absolute rounded-full border-2 border-emerald-400 dark:border-emerald-600 bg-emerald-400/10 transition-all duration-700"
                       style={{ width: "60%", height: "90%", left: "5%", top: "5%" }} />
                   )}
-
                   {mapPins.map((pin) => (
                     <div key={pin.id} className="absolute transform -translate-x-1/2 -translate-y-1/2 group"
                       style={{ left: `${pin.x}%`, top: `${pin.y}%` }}>
@@ -167,12 +184,9 @@ export default function Onboarding() {
                       )}
                     </div>
                   ))}
-
                   <div className="absolute bottom-3 right-3 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-xl px-3 py-1.5 shadow-sm">
                     <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">5 km radius view</span>
                   </div>
-
-                  {/* GPS quality badge */}
                   {gpsSource && (
                     <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-full text-[10px] font-semibold flex items-center gap-1 ${
                       gpsSource === "gps"
@@ -206,10 +220,7 @@ export default function Onboarding() {
                     }`}
                   >
                     {locating ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
-                        Detecting location...
-                      </>
+                      <><div className="w-4 h-4 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" /> Detecting location...</>
                     ) : located ? (
                       <><Check size={16} className="text-emerald-600 dark:text-emerald-400" /> Location set!</>
                     ) : (
@@ -236,7 +247,7 @@ export default function Onboarding() {
                 <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-2xl flex items-center justify-center mx-auto mb-4 text-3xl">🏘️</div>
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Join a Neighborhood</h1>
                 <p className="text-gray-500 dark:text-gray-400 text-sm">
-                  Communities within 5 km of your location. Join to connect with nearby residents.
+                  Communities near your location. Join one or create your own.
                 </p>
               </div>
 
@@ -251,43 +262,86 @@ export default function Onboarding() {
                 />
               </div>
 
-              <div className="space-y-3 mb-6">
-                {filteredNeighborhoods.map((hood) => (
-                  <button
-                    key={hood.id}
-                    onClick={() => handleSelectNeighborhood(hood)}
-                    className={`w-full card p-4 text-left hover:shadow-card-hover transition-all border-2 ${
-                      selectedNeighborhood?.id === hood.id
-                        ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/10"
-                        : "border-transparent"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-9 h-9 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl flex items-center justify-center text-lg">🏡</div>
-                        <div>
-                          <p className="font-semibold text-gray-900 dark:text-white">{hood.name}</p>
-                          <div className="flex items-center gap-3 mt-0.5">
-                            <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                              <Users size={11} />{hood.members.toLocaleString()} members
-                            </span>
-                            <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
-                              <MapPin size={11} />{hood.distance}
+              {/* Neighborhood list */}
+              <div className="space-y-3 mb-4 max-h-72 overflow-y-auto pr-1">
+                {loadingNeighborhoods ? (
+                  <div className="flex items-center justify-center py-10 text-gray-400 gap-2">
+                    <Loader size={18} className="animate-spin" /> Loading neighborhoods...
+                  </div>
+                ) : filteredList.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400 text-sm">
+                    No neighborhoods found. Create one below!
+                  </div>
+                ) : (
+                  filteredList.map((hood) => (
+                    <button
+                      key={hood.id}
+                      onClick={() => setSelectedNeighborhood(hood)}
+                      className={`w-full card p-4 text-left hover:shadow-card-hover transition-all border-2 ${
+                        selectedNeighborhood?.id === hood.id
+                          ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/10"
+                          : "border-transparent"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-9 h-9 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl flex items-center justify-center text-lg">🏡</div>
+                          <div>
+                            <p className="font-semibold text-gray-900 dark:text-white">{hood.name}</p>
+                            <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-0.5">
+                              <Users size={11} />{hood.memberCount ?? hood.members?.length ?? 0} members
                             </span>
                           </div>
                         </div>
+                        {selectedNeighborhood?.id === hood.id ? (
+                          <div className="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center">
+                            <Check size={14} className="text-white" strokeWidth={3} />
+                          </div>
+                        ) : (
+                          <ChevronRight size={18} className="text-gray-300 dark:text-gray-600" />
+                        )}
                       </div>
-                      {selectedNeighborhood?.id === hood.id ? (
-                        <div className="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center">
-                          <Check size={14} className="text-white" strokeWidth={3} />
-                        </div>
-                      ) : (
-                        <ChevronRight size={18} className="text-gray-300 dark:text-gray-600" />
-                      )}
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  ))
+                )}
               </div>
+
+              {/* Create new neighborhood */}
+              {!showCreate ? (
+                <button
+                  onClick={() => setShowCreate(true)}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all mb-6"
+                >
+                  <Plus size={15} /> Create a new neighborhood
+                </button>
+              ) : (
+                <div className="mb-6 card p-4 border-2 border-emerald-200 dark:border-emerald-800">
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">New neighborhood name</p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newNeighborhoodName}
+                      onChange={(e) => setNewNeighborhoodName(e.target.value)}
+                      placeholder="e.g. Maple Grove"
+                      className="input flex-1"
+                      onKeyDown={(e) => e.key === "Enter" && handleCreateNeighborhood()}
+                    />
+                    <button
+                      onClick={handleCreateNeighborhood}
+                      disabled={!newNeighborhoodName.trim() || creating}
+                      className="btn-primary px-4 py-2 text-sm disabled:opacity-50"
+                    >
+                      {creating ? <Loader size={14} className="animate-spin" /> : "Create"}
+                    </button>
+                    <button
+                      onClick={() => setShowCreate(false)}
+                      className="btn-secondary px-3 py-2 text-sm"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="flex gap-3">
                 <button onClick={() => setStep(1)} className="btn-secondary px-6 py-3">← Back</button>

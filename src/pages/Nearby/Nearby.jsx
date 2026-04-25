@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { MapPin, Star, MessageCircle, Search, Users, Building2, Wrench, UserCheck } from "lucide-react";
+import { useState, useEffect } from "react";
+import { MapPin, MessageCircle, Search, Users, Wrench, Globe, Star } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
 import { workerCategories } from "../../data/mockData";
@@ -7,7 +7,6 @@ import { workerCategories } from "../../data/mockData";
 const tabs = [
   { id: "people", label: "People", icon: Users },
   { id: "workers", label: "Workers", icon: Wrench },
-  { id: "businesses", label: "Businesses", icon: Building2 },
 ];
 
 const roleColors = {
@@ -65,7 +64,13 @@ function PersonCard({ person }) {
     <div className="card p-4 hover:shadow-card-hover transition-all duration-200">
       <div className="flex items-start gap-3">
         <div className="relative flex-shrink-0">
-          <img src={person.avatar} alt={person.name} className="w-12 h-12 rounded-xl object-cover" />
+          {person.avatar ? (
+            <img src={person.avatar} alt={person.name} className="w-12 h-12 rounded-xl object-cover" />
+          ) : (
+            <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-xl font-bold text-emerald-700 dark:text-emerald-400">
+              {person.name?.[0] || "?"}
+            </div>
+          )}
           {person.isOnline && <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-white dark:border-gray-800" />}
         </div>
         <div className="flex-1 min-w-0">
@@ -83,7 +88,10 @@ function PersonCard({ person }) {
                 )}
               </div>
             </div>
-            <Link to="/chat" className="p-2 rounded-xl text-gray-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 hover:text-emerald-600 dark:hover:text-emerald-400 border border-gray-200 dark:border-gray-600 hover:border-emerald-200 dark:hover:border-emerald-800 transition-all flex-shrink-0">
+            <Link
+              to={`/chat?userId=${person.id || person._id}`}
+              className="p-2 rounded-xl text-gray-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 hover:text-emerald-600 dark:hover:text-emerald-400 border border-gray-200 dark:border-gray-600 hover:border-emerald-200 dark:hover:border-emerald-800 transition-all flex-shrink-0"
+            >
               <MessageCircle size={15} />
             </Link>
           </div>
@@ -109,50 +117,20 @@ function PersonCard({ person }) {
   );
 }
 
-function BusinessCard({ business }) {
-  return (
-    <div className="card overflow-hidden hover:shadow-card-hover transition-all duration-200">
-      <div className="h-32 relative">
-        <img src={business.image} alt={business.name} className="w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-        <div className="absolute bottom-2 left-3 right-3 flex items-end justify-between">
-          <span className={`badge text-[10px] ${business.isOpen ? "bg-emerald-500 text-white" : "bg-gray-600 text-white"}`}>
-            {business.isOpen ? "● Open" : "● Closed"}
-          </span>
-          <span className="text-white text-xs font-medium">{business.distance}</span>
-        </div>
-      </div>
-      <div className="p-4">
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <div>
-            <h3 className="font-semibold text-gray-900 dark:text-white text-sm">{business.name}</h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{business.categoryIcon} {business.category}</p>
-          </div>
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <Star size={13} className="text-amber-400 fill-amber-400" />
-            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{business.rating}</span>
-          </div>
-        </div>
-        <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-3">{business.description}</p>
-        {business.offers?.[0] && (
-          <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-2.5 mb-3">
-            <p className="text-xs text-emerald-800 dark:text-emerald-300">🎉 {business.offers[0]}</p>
-          </div>
-        )}
-        <div className="flex items-center gap-2">
-          <Link to="/chat" className="btn-secondary flex-1 py-2 text-xs text-center">Message</Link>
-          <Link to="/businesses" className="btn-primary flex-1 py-2 text-xs text-center">View</Link>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function Nearby() {
-  const { filteredBusinesses, currentNeighborhood, nearbyUsers } = useApp();
+  const { currentNeighborhood, nearbyUsers, neighborhoodsList, fetchNeighborhoods } = useApp();
   const [activeTab, setActiveTab] = useState("people");
   const [activeCategory, setActiveCategory] = useState("All");
   const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    fetchNeighborhoods().catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const otherNeighborhoods = neighborhoodsList.filter(
+    (n) => n.name !== currentNeighborhood
+  );
 
   const workers = nearbyUsers.filter((u) => u.role === "worker");
   const people = nearbyUsers.filter((u) => u.role !== "business");
@@ -169,7 +147,7 @@ export default function Nearby() {
         <h1 className="section-title">Nearby</h1>
         <p className="section-subtitle">
           <span className="text-emerald-600 dark:text-emerald-400 font-medium">{currentNeighborhood}</span>
-          {" · "}People, workers & businesses within 5 km
+          {" · "}People & workers in your neighborhood
         </p>
       </div>
 
@@ -195,7 +173,7 @@ export default function Nearby() {
             <Icon size={15} />
             {label}
             <span className="badge bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 text-[10px] ml-0.5">
-              {id === "people" ? filteredPeople.length : id === "workers" ? workers.length : filteredBusinesses.length}
+              {id === "people" ? filteredPeople.length : workers.length}
             </span>
           </button>
         ))}
@@ -232,16 +210,31 @@ export default function Nearby() {
           )}
         </div>
       )}
-      {activeTab === "businesses" && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredBusinesses.slice(0, 6).map((b) => <BusinessCard key={b.id} business={b} />)}
-          {filteredBusinesses.length > 6 && (
-            <div className="col-span-full text-center pt-2">
-              <Link to="/businesses" className="btn-primary inline-flex py-2.5 px-6 text-sm">
-                View all {filteredBusinesses.length} businesses →
-              </Link>
-            </div>
-          )}
+      {/* Other Neighborhoods */}
+      {otherNeighborhoods.length > 0 && (
+        <div className="pt-2">
+          <div className="flex items-center gap-2 mb-3">
+            <Globe size={16} className="text-emerald-500" />
+            <h2 className="font-semibold text-gray-900 dark:text-white text-sm">Other Neighborhoods</h2>
+            <span className="badge bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 text-[10px]">
+              {otherNeighborhoods.length}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {otherNeighborhoods.map((n) => (
+              <div key={n.id || n._id} className="card p-4 flex items-center gap-3">
+                <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <MapPin size={18} className="text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{n.name}</p>
+                  {n.memberCount > 0 && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{n.memberCount} members</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

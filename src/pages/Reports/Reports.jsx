@@ -43,6 +43,11 @@ function ReportCard({ report }) {
             </span>
           </div>
           <p className="text-sm font-semibold text-gray-900 dark:text-white mb-0.5">{report.reason}</p>
+          {report.type === "post" && report.postContent && (
+            <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg px-3 py-2 mb-1.5 border-l-2 border-blue-300 dark:border-blue-600">
+              <p className="text-xs text-gray-600 dark:text-gray-300 italic line-clamp-3">"{report.postContent}"</p>
+            </div>
+          )}
           {report.description && (
             <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">{report.description}</p>
           )}

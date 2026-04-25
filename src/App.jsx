@@ -11,6 +11,7 @@ import Chat from "./pages/Chat/Chat";
 import Jobs from "./pages/Jobs/Jobs";
 import BusinessDashboard from "./pages/Business/BusinessDashboard";
 import Businesses from "./pages/Businesses/Businesses";
+import BusinessDetail from "./pages/Businesses/BusinessDetail";
 import Notifications from "./pages/Notifications/Notifications";
 import Reports from "./pages/Reports/Reports";
 
@@ -79,6 +80,7 @@ export default function App() {
         <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
         <Route path="/jobs" element={<ProtectedRoute><Jobs /></ProtectedRoute>} />
         <Route path="/businesses" element={<ProtectedRoute><Businesses /></ProtectedRoute>} />
+        <Route path="/businesses/:id" element={<ProtectedRoute><BusinessDetail /></ProtectedRoute>} />
         <Route path="/business" element={<ProtectedRoute requiredRole="business"><BusinessDashboard /></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
         <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />

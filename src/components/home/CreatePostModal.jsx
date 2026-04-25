@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Image, X } from "lucide-react";
+import { Image, X, Plus, Trash2 } from "lucide-react";
 import Modal from "../common/Modal";
 import { useApp } from "../../context/AppContext";
 
@@ -8,6 +8,12 @@ const postTypes = [
   { value: "warning", label: "Warning", icon: "⚠️" },
   { value: "help", label: "Help Needed", icon: "🆘" },
   { value: "offer", label: "Offer / Ad", icon: "🎉" },
+  { value: "order", label: "Order / Request", icon: "🛒" },
+];
+
+const ORDER_CATEGORIES = [
+  "Food & Groceries", "Electronics", "Clothing", "Furniture", "Hardware",
+  "Medicine", "Books", "Cleaning", "Stationery", "Other",
 ];
 
 export default function CreatePostModal({ isOpen, onClose }) {
@@ -16,19 +22,41 @@ export default function CreatePostModal({ isOpen, onClose }) {
   const [type, setType] = useState("general");
   const [imageUrl, setImageUrl] = useState("");
   const [showImageInput, setShowImageInput] = useState(false);
+  const [orderCategories, setOrderCategories] = useState([]);
+  const [orderBudget, setOrderBudget] = useState("");
+  const [orderItems, setOrderItems] = useState([]);
+  const [newItem, setNewItem] = useState("");
+
+  const reset = () => {
+    setContent(""); setType("general"); setImageUrl(""); setShowImageInput(false);
+    setOrderCategories([]); setOrderBudget(""); setOrderItems([]); setNewItem("");
+  };
+
+  const toggleCategory = (cat) => {
+    setOrderCategories((prev) =>
+      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
+    );
+  };
+
+  const addItem = () => {
+    if (!newItem.trim()) return;
+    setOrderItems((prev) => [...prev, newItem.trim()]);
+    setNewItem("");
+  };
+
+  const removeItem = (i) => setOrderItems((prev) => prev.filter((_, idx) => idx !== i));
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!content.trim()) return;
-    addPost({
-      type,
-      content: content.trim(),
-      image: imageUrl.trim() || null,
-    });
-    setContent("");
-    setType("general");
-    setImageUrl("");
-    setShowImageInput(false);
+    const postData = { type, content: content.trim(), image: imageUrl.trim() || null };
+    if (type === "order") {
+      postData.orderCategories = orderCategories;
+      postData.orderBudget = orderBudget.trim();
+      postData.orderItems = orderItems;
+    }
+    addPost(postData);
+    reset();
     onClose();
   };
 
@@ -78,9 +106,11 @@ export default function CreatePostModal({ isOpen, onClose }) {
                 ? "What kind of help do you need?"
                 : type === "offer"
                 ? "Describe your offer or advertisement..."
+                : type === "order"
+                ? "Describe what you're looking to order or buy..."
                 : "What's happening in your neighborhood?"
             }
-            rows={5}
+            rows={4}
             className="input resize-none"
             autoFocus
           />
@@ -90,6 +120,74 @@ export default function CreatePostModal({ isOpen, onClose }) {
             </span>
           </div>
         </div>
+
+        {/* Order-specific fields */}
+        {type === "order" && (
+          <div className="space-y-4 border-t border-gray-100 dark:border-gray-700 pt-4">
+            {/* Categories */}
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Categories (select all that apply)</p>
+              <div className="flex flex-wrap gap-2">
+                {ORDER_CATEGORIES.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => toggleCategory(cat)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
+                      orderCategories.includes(cat)
+                        ? "bg-emerald-500 text-white border-emerald-500"
+                        : "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-emerald-300 dark:hover:border-emerald-700"
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Budget */}
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Budget (optional)</p>
+              <input
+                type="text"
+                value={orderBudget}
+                onChange={(e) => setOrderBudget(e.target.value)}
+                placeholder="e.g. $50 or under $100"
+                className="input"
+              />
+            </div>
+
+            {/* Items list */}
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Items (optional)</p>
+              {orderItems.map((item, i) => (
+                <div key={i} className="flex items-center gap-2 mb-1.5">
+                  <span className="flex-1 text-xs text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 rounded-lg px-3 py-1.5">
+                    {item}
+                  </span>
+                  <button type="button" onClick={() => removeItem(i)}
+                    className="p-1 text-gray-400 hover:text-red-500 transition-colors">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newItem}
+                  onChange={(e) => setNewItem(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addItem())}
+                  placeholder="Add an item..."
+                  className="input flex-1 text-sm"
+                />
+                <button type="button" onClick={addItem}
+                  className="btn-secondary p-2.5 flex-shrink-0">
+                  <Plus size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Image input */}
         {showImageInput && (
@@ -126,7 +224,7 @@ export default function CreatePostModal({ isOpen, onClose }) {
             </button>
           </div>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={onClose} className="btn-secondary py-2 px-4 text-sm">
+            <button type="button" onClick={() => { reset(); onClose(); }} className="btn-secondary py-2 px-4 text-sm">
               Cancel
             </button>
             <button

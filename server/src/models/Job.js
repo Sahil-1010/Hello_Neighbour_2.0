@@ -10,7 +10,7 @@ const jobSchema = new mongoose.Schema(
     location:     { type: String, default: "" },
     neighborhood: { type: String, required: true },
     urgency:      { type: String, enum: ["urgent", "normal", "low"], default: "normal" },
-    status:       { type: String, enum: ["pending", "ongoing", "completed"], default: "pending" },
+    status:       { type: String, enum: ["open", "applied", "pending", "ongoing", "completed", "closed"], default: "open" },
 
     // Geospatial — copied from poster's location at creation time
     geoLocation: {
@@ -22,6 +22,14 @@ const jobSchema = new mongoose.Schema(
     assignedTo:   { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     applicants:   { type: Number, default: 0 },
     applicantList:[{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+
+    comments: [{
+      userId:     { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+      userName:   { type: String, default: "" },
+      userAvatar: { type: String, default: "" },
+      text:       { type: String, required: true },
+      createdAt:  { type: Date, default: Date.now },
+    }],
   },
   { timestamps: true }
 );

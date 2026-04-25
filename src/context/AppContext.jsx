@@ -221,6 +221,22 @@ export function AppProvider({ children }) {
     setBusinesses((prev) => prev.map((b) => b.id === updated.id ? updated : b));
   };
 
+  const rateBusiness = async (businessId, value) => {
+    const data = await api.post(`/businesses/${businessId}/rate`, { value });
+    setBusinesses((prev) =>
+      prev.map((b) => b.id === businessId ? { ...b, rating: data.rating, reviewCount: data.reviewCount } : b)
+    );
+    addToast({ type: "success", message: "Rating submitted!" });
+    return data;
+  };
+
+  const respondToOrder = async (postId, responseData) => {
+    const data = await api.post(`/posts/${postId}/respond`, responseData);
+    setPosts((prev) => prev.map((p) => p.id === postId ? data : p));
+    addToast({ type: "success", message: "Response sent to customer!" });
+    return data;
+  };
+
   // ── Post actions ──────────────────────────────────────────────────────────
   const addPost = async (postData) => {
     const newPost = await api.post("/posts", postData);
@@ -439,7 +455,7 @@ export function AppProvider({ children }) {
         // counts
         unreadNotifCount, unreadMsgCount,
         // business actions
-        addBusiness, updateBusiness,
+        addBusiness, updateBusiness, rateBusiness, respondToOrder,
         // post actions
         addPost, toggleLike, toggleDislike, addComment,
         // moderation

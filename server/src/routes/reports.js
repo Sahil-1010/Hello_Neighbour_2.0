@@ -1,5 +1,6 @@
 const router = require("express").Router();
 const Report = require("../models/Report");
+const Post = require("../models/Post");
 const User = require("../models/User");
 const { auth } = require("../middleware/auth");
 
@@ -60,11 +61,20 @@ router.get("/", auth, async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(100);
 
+    // Attach post content for post-type reports
+    const postIds = reports.filter((r) => r.type === "post").map((r) => r.targetId);
+    const postMap = {};
+    if (postIds.length > 0) {
+      const posts = await Post.find({ _id: { $in: postIds } }).select("content");
+      posts.forEach((p) => { postMap[p._id.toString()] = p.content; });
+    }
+
     res.json(
-      reports.map((r) => ({
-        ...r.toObject(),
-        id: r._id.toString(),
-      }))
+      reports.map((r) => {
+        const obj = { ...r.toObject(), id: r._id.toString() };
+        if (r.type === "post") obj.postContent = postMap[r.targetId] || null;
+        return obj;
+      })
     );
   } catch (err) {
     res.status(500).json({ message: err.message });

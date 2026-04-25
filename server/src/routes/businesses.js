@@ -40,13 +40,53 @@ router.get("/", auth, async (req, res) => {
 });
 
 // GET /api/businesses/my — owner sees their own businesses only
+// No role gate — owner can still view their businesses after switching roles
 // Must be BEFORE /:id so "my" is not parsed as an ObjectId
-router.get("/my", auth, requireRole("business"), async (req, res) => {
+router.get("/my", auth, async (req, res) => {
   try {
     const businesses = await Business.find({ owner: req.user.id })
       .populate("owner", "name avatar")
       .sort({ createdAt: -1 });
     res.json(businesses.map((b) => ({ ...b.toObject(), id: b._id.toString() })));
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// GET /api/businesses/offers?neighborhood=X — active offers for home feed
+// Must be BEFORE /:id so "offers" is not parsed as a MongoDB ObjectId
+router.get("/offers", auth, async (req, res) => {
+  try {
+    const { neighborhood } = req.query;
+    const filter = {};
+    if (neighborhood) filter.neighborhood = neighborhood;
+
+    const businesses = await Business.find(filter)
+      .select("name categoryIcon category neighborhood offers image")
+      .limit(50);
+
+    const offerItems = [];
+    businesses.forEach((biz) => {
+      (biz.offers || [])
+        .filter((o) => o.isActive)
+        .forEach((offer) => {
+          offerItems.push({
+            id: offer._id.toString(),
+            businessId: biz._id.toString(),
+            businessName: biz.name,
+            categoryIcon: biz.categoryIcon || "🏪",
+            category: biz.category,
+            businessImage: biz.image || "",
+            title: offer.title,
+            description: offer.description || "",
+            discount: offer.discount || "",
+            validUntil: offer.validUntil || null,
+            createdAt: offer.createdAt,
+          });
+        });
+    });
+
+    res.json(offerItems);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -58,6 +98,36 @@ router.get("/:id", auth, async (req, res) => {
     const business = await Business.findById(req.params.id).populate("owner", "name avatar");
     if (!business) return res.status(404).json({ message: "Business not found" });
     res.json({ ...business.toObject(), id: business._id.toString() });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/businesses/:id/rate — any authenticated user except the owner
+router.post("/:id/rate", auth, async (req, res) => {
+  try {
+    const value = Number(req.body.value);
+    if (!value || value < 1 || value > 5)
+      return res.status(400).json({ message: "Rating must be between 1 and 5" });
+
+    const business = await Business.findById(req.params.id);
+    if (!business) return res.status(404).json({ message: "Business not found" });
+    if (business.owner.toString() === req.user.id)
+      return res.status(400).json({ message: "Cannot rate your own business" });
+
+    const idx = business.ratings.findIndex((r) => r.userId.toString() === req.user.id);
+    if (idx >= 0) {
+      business.ratings[idx].value = value;
+    } else {
+      business.ratings.push({ userId: req.user.id, value });
+    }
+
+    const total = business.ratings.reduce((s, r) => s + r.value, 0);
+    business.rating = Math.round((total / business.ratings.length) * 10) / 10;
+    business.reviewCount = business.ratings.length;
+    await business.save();
+
+    res.json({ rating: business.rating, reviewCount: business.reviewCount });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

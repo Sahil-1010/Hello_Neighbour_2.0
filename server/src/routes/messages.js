@@ -1,7 +1,9 @@
 const router = require("express").Router();
 const Conversation = require("../models/Conversation");
 const Message = require("../models/Message");
+const User = require("../models/User");
 const { auth } = require("../middleware/auth");
+const { createNotification } = require("../services/notification");
 
 router.get("/conversations", auth, async (req, res) => {
   try {
@@ -28,6 +30,37 @@ router.get("/conversations", auth, async (req, res) => {
 router.post("/conversations", auth, async (req, res) => {
   try {
     const { recipientId } = req.body;
+
+    // Prevent self-messaging
+    if (recipientId === req.user.id)
+      return res.status(400).json({ message: "You cannot message yourself" });
+
+    // Same-neighborhood check
+    const [sender, recipient] = await Promise.all([
+      User.findById(req.user.id).select("neighborhood neighborhoodId"),
+      User.findById(recipientId).select("neighborhood neighborhoodId"),
+    ]);
+
+    if (!recipient) return res.status(404).json({ message: "User not found" });
+
+    const senderHasNeighborhood = sender?.neighborhood || sender?.neighborhoodId;
+    const recipientHasNeighborhood = recipient?.neighborhood || recipient?.neighborhoodId;
+
+    if (senderHasNeighborhood && recipientHasNeighborhood) {
+      const sameById =
+        sender.neighborhoodId &&
+        recipient.neighborhoodId &&
+        sender.neighborhoodId.toString() === recipient.neighborhoodId.toString();
+      const sameByName =
+        sender.neighborhood &&
+        recipient.neighborhood &&
+        sender.neighborhood === recipient.neighborhood;
+
+      if (!sameById && !sameByName) {
+        return res.status(403).json({ message: "You can only message people in your neighborhood" });
+      }
+    }
+
     let conv = await Conversation.findOne({ participants: { $all: [req.user.id, recipientId] } })
       .populate("participants", "name avatar role isOnline");
     if (!conv) {
@@ -68,6 +101,17 @@ router.post("/conversations/:id", auth, async (req, res) => {
       lastMessageAt: new Date(),
       $set: { [`unreadCount.${recipientId}`]: prevUnread + 1 },
     });
+
+    // Notify recipient
+    const senderUser = await User.findById(req.user.id).select("name avatar");
+    createNotification({
+      userId:  recipientId,
+      type:    "message",
+      message: `New message from ${senderUser.name}`,
+      avatar:  senderUser.avatar,
+      link:    "/chat",
+    });
+
     res.status(201).json({ id: message._id.toString(), senderId: message.senderId.toString(), text: message.text, timestamp: "Just now" });
   } catch (err) {
     res.status(500).json({ message: err.message });

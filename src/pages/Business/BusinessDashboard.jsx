@@ -328,7 +328,7 @@ function NoBusiness({ onCreateClick }) {
 // ── Main Dashboard ────────────────────────────────────────────────────────────
 
 export default function BusinessDashboard() {
-  const { user, addToast, addBusiness, updateBusiness } = useApp();
+  const { user, addToast, addBusiness, updateBusiness, posts } = useApp();
   const [myBusiness, setMyBusiness] = useState(null);
   const [businessLoading, setBusinessLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -340,6 +340,8 @@ export default function BusinessDashboard() {
       .catch(() => {})
       .finally(() => setBusinessLoading(false));
   }, []);
+
+  const orderPosts = posts.filter((p) => p.type === "order");
 
   const handleBusinessCreated = (newBusiness) => {
     setMyBusiness(newBusiness);
@@ -519,6 +521,74 @@ export default function BusinessDashboard() {
                 onUpdate={handleBusinessUpdated}
                 onDelete={handleBusinessUpdated}
               />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Order Requests */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h2 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <span className="text-xl">🛒</span>
+              Neighborhood Orders
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              Recent order requests from your neighbors
+            </p>
+          </div>
+          <span className="badge bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
+            {orderPosts.length}
+          </span>
+        </div>
+
+        {orderPosts.length === 0 ? (
+          <div className="card p-8 text-center border-dashed border-2 border-gray-200 dark:border-gray-700">
+            <p className="text-3xl mb-2">🛒</p>
+            <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">No orders yet</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">When neighbors post orders, they'll appear here.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {orderPosts.slice(0, 5).map((post) => (
+              <div key={post.id} className="card p-4">
+                <div className="flex items-start gap-3">
+                  <img
+                    src={post.author?.avatar}
+                    alt={post.author?.name}
+                    className="w-9 h-9 rounded-full object-cover flex-shrink-0"
+                    onError={(e) => { e.target.style.display = "none"; }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{post.author?.name}</p>
+                      <span className="text-xs text-gray-400 dark:text-gray-500">{post.timestamp}</span>
+                    </div>
+                    <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">{post.content}</p>
+                    {post.orderItems?.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {post.orderItems.slice(0, 4).map((item, i) => (
+                          <span key={i} className="badge bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 text-[10px]">{item}</span>
+                        ))}
+                      </div>
+                    )}
+                    {post.orderBudget && (
+                      <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-1">Budget: {post.orderBudget}</p>
+                    )}
+                    {post.orderCategories?.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {post.orderCategories.map((cat) => (
+                          <span key={cat} className="badge bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 text-[10px]">{cat}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <span className="badge bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300 flex-shrink-0 text-[10px]">
+                    {(post.responses || []).length} responses
+                  </span>
+                </div>
+              </div>
             ))}
           </div>
         )}

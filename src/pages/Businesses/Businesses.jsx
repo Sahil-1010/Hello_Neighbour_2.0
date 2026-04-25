@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Star, MapPin, Phone, MessageCircle, Plus, Clock } from "lucide-react";
+import { Search, Star, MapPin, MessageCircle, Plus, Clock } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
 import { businessCategories } from "../../data/mockData";
@@ -80,10 +80,15 @@ function BusinessCard({ biz }) {
 
         {/* Actions */}
         <div className="flex gap-2 mt-auto">
-          <Link to="/chat" className="flex-1 flex items-center justify-center gap-1.5 btn-secondary py-2 text-xs">
+          <Link
+            to={`/chat?userId=${biz.owner?._id || biz.owner?.id || ""}`}
+            className="flex-1 flex items-center justify-center gap-1.5 btn-secondary py-2 text-xs"
+          >
             <MessageCircle size={13} /> Contact
           </Link>
-          <button className="flex-1 btn-primary py-2 text-xs">View Details</button>
+          <Link to={`/businesses/${biz.id}`} className="flex-1 flex items-center justify-center btn-primary py-2 text-xs">
+            View Details
+          </Link>
         </div>
       </div>
     </div>
@@ -118,28 +123,35 @@ export default function Businesses() {
   const [activeCategory, setActiveCategory] = useState("All");
   const [search, setSearch] = useState("");
 
-  const categoryCounts = businessCategories.reduce((acc, cat) => {
-    acc[cat.name] = filteredBusinesses.filter((b) => b.category === cat.name).length;
+  const totalCount = filteredBusinesses.length;
+
+  // Build categories dynamically from actual data — not restricted to mockData list
+  const uniqueCategories = [...new Set(filteredBusinesses.map((b) => b.category).filter(Boolean))];
+  const categoryCounts = uniqueCategories.reduce((acc, name) => {
+    acc[name] = filteredBusinesses.filter((b) => b.category === name).length;
     return acc;
   }, {});
-  const totalCount = filteredBusinesses.length;
 
   const displayed = filteredBusinesses.filter((b) => {
     const matchCat = activeCategory === "All" || b.category === activeCategory;
     const matchSearch =
       !search ||
       b.name.toLowerCase().includes(search.toLowerCase()) ||
-      b.description.toLowerCase().includes(search.toLowerCase()) ||
-      b.category.toLowerCase().includes(search.toLowerCase());
+      (b.description || "").toLowerCase().includes(search.toLowerCase()) ||
+      (b.category || "").toLowerCase().includes(search.toLowerCase());
     return matchCat && matchSearch;
   });
 
-  // Group displayed businesses by category for sectioned view
-  const grouped = businessCategories.reduce((acc, cat) => {
-    const items = displayed.filter((b) => b.category === cat.name);
-    if (items.length) acc[cat.name] = { ...cat, items };
-    return acc;
-  }, {});
+  // Group by category dynamically — catches any category not in mockData
+  const grouped = {};
+  displayed.forEach((biz) => {
+    const cat = biz.category || "Other";
+    if (!grouped[cat]) {
+      const mockCat = businessCategories.find((c) => c.name === cat);
+      grouped[cat] = { name: cat, icon: mockCat?.icon || "🏪", items: [] };
+    }
+    grouped[cat].items.push(biz);
+  });
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
@@ -179,15 +191,19 @@ export default function Businesses() {
               <div className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">All</div>
             </div>
           </button>
-          {businessCategories.map((cat) => (
-            <CategorySummaryCard
-              key={cat.name}
-              cat={cat}
-              count={categoryCounts[cat.name] || 0}
-              isActive={activeCategory === cat.name}
-              onClick={() => setActiveCategory(cat.name === activeCategory ? "All" : cat.name)}
-            />
-          ))}
+          {uniqueCategories.map((name) => {
+            const mockCat = businessCategories.find((c) => c.name === name);
+            const cat = mockCat || { name, icon: "🏪" };
+            return (
+              <CategorySummaryCard
+                key={name}
+                cat={cat}
+                count={categoryCounts[name] || 0}
+                isActive={activeCategory === name}
+                onClick={() => setActiveCategory(name === activeCategory ? "All" : name)}
+              />
+            );
+          })}
         </div>
       </div>
 
@@ -213,7 +229,7 @@ export default function Businesses() {
       ) : activeCategory === "All" ? (
         /* Sectioned view when showing all */
         <div className="space-y-8">
-          {Object.values(grouped).map(({ name, icon, items }) => (
+          {Object.values(grouped).map(({ name, icon = "🏪", items }) => (
             <section key={name}>
               <div className="flex items-center justify-between mb-3">
                 <h2 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
