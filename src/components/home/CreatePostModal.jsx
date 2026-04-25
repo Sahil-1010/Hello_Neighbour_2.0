@@ -1,13 +1,13 @@
 import { useState } from "react";
-import { Image, AlertTriangle, HelpCircle, Tag, X } from "lucide-react";
+import { Image, X } from "lucide-react";
 import Modal from "../common/Modal";
 import { useApp } from "../../context/AppContext";
 
 const postTypes = [
-  { value: "general", label: "General", icon: "💬", color: "bg-gray-100 text-gray-700" },
-  { value: "warning", label: "Warning", icon: "⚠️", color: "bg-red-100 text-red-700" },
-  { value: "help", label: "Help Needed", icon: "🆘", color: "bg-blue-100 text-blue-700" },
-  { value: "offer", label: "Offer / Ad", icon: "🎉", color: "bg-emerald-100 text-emerald-700" },
+  { value: "general", label: "General", icon: "💬" },
+  { value: "warning", label: "Warning", icon: "⚠️" },
+  { value: "help", label: "Help Needed", icon: "🆘" },
+  { value: "offer", label: "Offer / Ad", icon: "🎉" },
 ];
 
 export default function CreatePostModal({ isOpen, onClose }) {
@@ -39,14 +39,14 @@ export default function CreatePostModal({ isOpen, onClose }) {
         <div className="flex items-center gap-3">
           <img src={user?.avatar} alt={user?.name} className="w-11 h-11 rounded-full object-cover" />
           <div>
-            <p className="font-semibold text-gray-900 text-sm">{user?.name}</p>
-            <p className="text-xs text-gray-500">{user?.neighborhood}</p>
+            <p className="font-semibold text-gray-900 dark:text-white text-sm">{user?.name}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{user?.neighborhood}</p>
           </div>
         </div>
 
         {/* Post type */}
         <div>
-          <p className="text-xs font-medium text-gray-500 mb-2">Post Type</p>
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Post Type</p>
           <div className="grid grid-cols-2 gap-2">
             {postTypes.map((pt) => (
               <button
@@ -55,8 +55,8 @@ export default function CreatePostModal({ isOpen, onClose }) {
                 onClick={() => setType(pt.value)}
                 className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
                   type === pt.value
-                    ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                    : "border-gray-200 text-gray-600 hover:border-gray-300"
+                    ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400"
+                    : "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500"
                 }`}
               >
                 <span>{pt.icon}</span>
@@ -85,7 +85,7 @@ export default function CreatePostModal({ isOpen, onClose }) {
             autoFocus
           />
           <div className="flex justify-end mt-1">
-            <span className={`text-xs ${content.length > 450 ? "text-red-500" : "text-gray-400"}`}>
+            <span className={`text-xs ${content.length > 450 ? "text-red-500" : "text-gray-400 dark:text-gray-500"}`}>
               {content.length}/500
             </span>
           </div>
@@ -104,7 +104,7 @@ export default function CreatePostModal({ isOpen, onClose }) {
             <button
               type="button"
               onClick={() => { setShowImageInput(false); setImageUrl(""); }}
-              className="p-2.5 rounded-xl text-gray-400 hover:bg-gray-100 transition-colors"
+              className="p-2.5 rounded-xl text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
               <X size={16} />
             </button>
@@ -112,13 +112,13 @@ export default function CreatePostModal({ isOpen, onClose }) {
         )}
 
         {/* Actions row */}
-        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+        <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-700">
           <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={() => setShowImageInput(!showImageInput)}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm transition-colors ${
-                showImageInput ? "bg-emerald-50 text-emerald-600" : "text-gray-500 hover:bg-gray-100"
+                showImageInput ? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400" : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
               }`}
             >
               <Image size={16} />

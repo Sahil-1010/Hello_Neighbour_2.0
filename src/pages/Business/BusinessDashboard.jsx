@@ -15,18 +15,18 @@ function StatCard({ icon: Icon, label, value, change, color }) {
           <Icon size={20} className="text-white" />
         </div>
         {change && (
-          <span className={`text-xs font-medium px-2 py-1 rounded-full ${change > 0 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+          <span className={`text-xs font-medium px-2 py-1 rounded-full ${change > 0 ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400" : "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400"}`}>
             {change > 0 ? "+" : ""}{change}%
           </span>
         )}
       </div>
-      <div className="text-2xl font-bold text-gray-900 mb-0.5">{value}</div>
-      <div className="text-xs text-gray-500">{label}</div>
+      <div className="text-2xl font-bold text-gray-900 dark:text-white mb-0.5">{value}</div>
+      <div className="text-xs text-gray-500 dark:text-gray-400">{label}</div>
     </div>
   );
 }
 
-function OfferCard({ offer, onToggle }) {
+function OfferCard({ offer }) {
   const [active, setActive] = useState(true);
   return (
     <div className={`card p-4 transition-all ${!active ? "opacity-60" : ""}`}>
@@ -34,9 +34,9 @@ function OfferCard({ offer, onToggle }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-lg">🎉</span>
-            <p className="font-semibold text-gray-900 text-sm">{offer}</p>
+            <p className="font-semibold text-gray-900 dark:text-white text-sm">{offer}</p>
           </div>
-          <p className="text-xs text-gray-500">Posted 3 days ago · 45 views</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Posted 3 days ago · 45 views</p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
@@ -45,7 +45,7 @@ function OfferCard({ offer, onToggle }) {
           >
             {active ? <ToggleRight size={28} /> : <ToggleLeft size={28} />}
           </button>
-          <button className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors">
+          <button className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
             <Edit3 size={15} />
           </button>
         </div>
@@ -61,7 +61,7 @@ function CreateOfferModal({ isOpen, onClose }) {
     <Modal isOpen={isOpen} onClose={onClose} title="Create Offer / Ad">
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Offer title *</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Offer title *</label>
           <input
             type="text"
             value={form.title}
@@ -71,7 +71,7 @@ function CreateOfferModal({ isOpen, onClose }) {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Description</label>
           <textarea
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -82,7 +82,7 @@ function CreateOfferModal({ isOpen, onClose }) {
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Discount / Value</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Discount / Value</label>
             <input
               type="text"
               value={form.discount}
@@ -92,7 +92,7 @@ function CreateOfferModal({ isOpen, onClose }) {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Valid until</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Valid until</label>
             <input
               type="date"
               value={form.validUntil}
@@ -141,8 +141,8 @@ export default function BusinessDashboard() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Business Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Manage your business profile and offerings</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Business Dashboard</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Manage your business profile and offerings</p>
         </div>
         <button
           onClick={() => setShowOfferModal(true)}
@@ -166,7 +166,7 @@ export default function BusinessDashboard() {
         </div>
         <div className="p-5 -mt-8">
           <div className="flex items-end justify-between mb-3">
-            <div className="w-16 h-16 bg-white rounded-2xl shadow-md border border-gray-100 flex items-center justify-center text-3xl">
+            <div className="w-16 h-16 bg-white dark:bg-gray-700 rounded-2xl shadow-md border border-gray-100 dark:border-gray-600 flex items-center justify-center text-3xl">
               🏪
             </div>
             <button className="btn-secondary py-2 px-4 text-sm flex items-center gap-1.5 mt-8">
@@ -174,13 +174,13 @@ export default function BusinessDashboard() {
               Edit Profile
             </button>
           </div>
-          <h2 className="text-xl font-bold text-gray-900">{business.name}</h2>
-          <p className="text-sm text-gray-500 mb-1">{business.category}</p>
-          <p className="text-sm text-gray-600 leading-relaxed mb-3">{business.description}</p>
-          <div className="flex items-center gap-4 text-sm text-gray-500">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">{business.name}</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">{business.category}</p>
+          <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed mb-3">{business.description}</p>
+          <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
             <span className="flex items-center gap-1.5">
               <Star size={14} className="text-amber-400 fill-amber-400" />
-              <span className="font-semibold text-gray-900">{business.rating}</span>
+              <span className="font-semibold text-gray-900 dark:text-white">{business.rating}</span>
               ({business.reviewCount} reviews)
             </span>
             <span className="flex items-center gap-1.5">
@@ -193,7 +193,7 @@ export default function BusinessDashboard() {
 
       {/* Stats Grid */}
       <div>
-        <h2 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+        <h2 className="font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
           <BarChart3 size={18} className="text-emerald-500" />
           Performance Overview
         </h2>
@@ -206,7 +206,7 @@ export default function BusinessDashboard() {
 
       {/* Weekly chart placeholder */}
       <div className="card p-5">
-        <h3 className="font-bold text-gray-900 mb-4 text-sm">Weekly Engagement</h3>
+        <h3 className="font-bold text-gray-900 dark:text-white mb-4 text-sm">Weekly Engagement</h3>
         <div className="flex items-end gap-2 h-24">
           {[40, 65, 45, 80, 55, 90, 70].map((h, i) => (
             <div key={i} className="flex-1 flex flex-col items-center gap-1">
@@ -214,7 +214,7 @@ export default function BusinessDashboard() {
                 className="w-full rounded-t-lg bg-emerald-500/80 hover:bg-emerald-500 transition-all cursor-pointer"
                 style={{ height: `${h}%` }}
               />
-              <span className="text-[10px] text-gray-400">
+              <span className="text-[10px] text-gray-400 dark:text-gray-500">
                 {["M", "T", "W", "T", "F", "S", "S"][i]}
               </span>
             </div>
@@ -225,13 +225,13 @@ export default function BusinessDashboard() {
       {/* Active Offers */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-gray-900 flex items-center gap-2">
+          <h2 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <Tag size={18} className="text-emerald-500" />
             Active Offers & Ads
           </h2>
           <button
             onClick={() => setShowOfferModal(true)}
-            className="text-sm text-emerald-600 font-medium hover:text-emerald-700 flex items-center gap-1"
+            className="text-sm text-emerald-600 dark:text-emerald-400 font-medium hover:text-emerald-700 dark:hover:text-emerald-300 flex items-center gap-1"
           >
             <Plus size={14} /> Add offer
           </button>
@@ -246,11 +246,11 @@ export default function BusinessDashboard() {
       {/* Job Requests */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-gray-900 flex items-center gap-2">
+          <h2 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <Briefcase size={18} className="text-emerald-500" />
             Job Requests
           </h2>
-          <a href="/jobs" className="text-sm text-emerald-600 font-medium hover:text-emerald-700 flex items-center gap-1">
+          <a href="/jobs" className="text-sm text-emerald-600 dark:text-emerald-400 font-medium hover:text-emerald-700 dark:hover:text-emerald-300 flex items-center gap-1">
             View all <ChevronRight size={14} />
           </a>
         </div>
@@ -259,18 +259,18 @@ export default function BusinessDashboard() {
             <div key={job.id} className="card p-4 flex items-center gap-3">
               <span className="text-2xl">{job.categoryIcon}</span>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-gray-900 text-sm truncate">{job.title}</p>
-                <p className="text-xs text-gray-500">{job.budget} · {job.postedAt}</p>
+                <p className="font-semibold text-gray-900 dark:text-white text-sm truncate">{job.title}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{job.budget} · {job.postedAt}</p>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 <span className={`badge text-[10px] ${
-                  job.status === "pending" ? "bg-amber-100 text-amber-700" :
-                  job.status === "ongoing" ? "bg-blue-100 text-blue-700" :
-                  "bg-emerald-100 text-emerald-700"
+                  job.status === "pending" ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400" :
+                  job.status === "ongoing" ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400" :
+                  "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400"
                 }`}>
                   {job.status}
                 </span>
-                <button className="p-1.5 text-gray-400 hover:text-emerald-600 transition-colors">
+                <button className="p-1.5 text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
                   <ChevronRight size={16} />
                 </button>
               </div>
@@ -281,16 +281,16 @@ export default function BusinessDashboard() {
 
       {/* Recent Activity */}
       <div>
-        <h2 className="font-bold text-gray-900 mb-3">Recent Activity</h2>
-        <div className="card divide-y divide-gray-100">
+        <h2 className="font-bold text-gray-900 dark:text-white mb-3">Recent Activity</h2>
+        <div className="card divide-y divide-gray-100 dark:divide-gray-700">
           {recentActivity.map((item, i) => (
-            <div key={i} className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition-colors">
-              <div className="w-9 h-9 bg-gray-100 rounded-xl flex items-center justify-center text-lg flex-shrink-0">
+            <div key={i} className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+              <div className="w-9 h-9 bg-gray-100 dark:bg-gray-700 rounded-xl flex items-center justify-center text-lg flex-shrink-0">
                 {item.icon}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-gray-700">{item.text}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{item.time}</p>
+                <p className="text-sm text-gray-700 dark:text-gray-300">{item.text}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{item.time}</p>
               </div>
             </div>
           ))}

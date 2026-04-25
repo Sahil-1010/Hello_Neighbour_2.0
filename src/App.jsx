@@ -10,6 +10,7 @@ import Profile from "./pages/Profile/Profile";
 import Chat from "./pages/Chat/Chat";
 import Jobs from "./pages/Jobs/Jobs";
 import BusinessDashboard from "./pages/Business/BusinessDashboard";
+import Businesses from "./pages/Businesses/Businesses";
 import Notifications from "./pages/Notifications/Notifications";
 
 function ProtectedRoute({ children }) {
@@ -62,6 +63,7 @@ export default function App() {
         <Route path="/profile/:id" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
         <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
         <Route path="/jobs" element={<ProtectedRoute><Jobs /></ProtectedRoute>} />
+        <Route path="/businesses" element={<ProtectedRoute><Businesses /></ProtectedRoute>} />
         <Route path="/business" element={<ProtectedRoute><BusinessDashboard /></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />

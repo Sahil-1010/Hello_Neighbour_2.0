@@ -31,14 +31,14 @@ export default function Modal({ isOpen, onClose, title, children, size = "md" })
       />
       {/* Modal */}
       <div
-        className={`relative w-full ${sizes[size]} bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl z-10 max-h-[90vh] flex flex-col`}
+        className={`relative w-full ${sizes[size]} bg-white dark:bg-gray-800 rounded-t-3xl sm:rounded-2xl shadow-2xl z-10 max-h-[90vh] flex flex-col`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
-          <h2 className="text-lg font-bold text-gray-900">{title}</h2>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex-shrink-0">
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white">{title}</h2>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+            className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
           >
             <X size={20} />
           </button>

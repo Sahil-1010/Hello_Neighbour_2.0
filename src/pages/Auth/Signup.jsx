@@ -85,24 +85,24 @@ export default function Signup() {
       </div>
 
       {/* Right — Form */}
-      <div className="flex-1 flex items-center justify-center p-6 bg-gray-50 overflow-y-auto">
+      <div className="flex-1 flex items-center justify-center p-6 bg-gray-50 dark:bg-gray-900 overflow-y-auto">
         <div className="w-full max-w-lg">
           {/* Mobile logo */}
           <div className="flex items-center gap-2 mb-8 lg:hidden">
             <div className="w-9 h-9 bg-emerald-500 rounded-xl flex items-center justify-center text-xl">🏘️</div>
-            <span className="font-bold text-gray-900 text-xl">
+            <span className="font-bold text-gray-900 dark:text-white text-xl">
               Hello<span className="text-emerald-500">Neighbour</span>
             </span>
           </div>
 
           {step === 1 ? (
             <div className="card p-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-1">Create your account</h2>
-              <p className="text-gray-500 text-sm mb-8">Join thousands of neighbors near you</p>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">Create your account</h2>
+              <p className="text-gray-500 dark:text-gray-400 text-sm mb-8">Join thousands of neighbors near you</p>
 
               <form onSubmit={handleNext} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Full name</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Full name</label>
                   <input
                     type="text"
                     value={form.name}
@@ -113,7 +113,7 @@ export default function Signup() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Email address</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Email address</label>
                   <input
                     type="email"
                     value={form.email}
@@ -124,7 +124,7 @@ export default function Signup() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Password</label>
                   <div className="relative">
                     <input
                       type={showPassword ? "text" : "password"}
@@ -138,7 +138,7 @@ export default function Signup() {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                     >
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
@@ -149,15 +149,15 @@ export default function Signup() {
                   <div
                     onClick={() => setAgree(!agree)}
                     className={`mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                      agree ? "bg-emerald-500 border-emerald-500" : "border-gray-300"
+                      agree ? "bg-emerald-500 border-emerald-500" : "border-gray-300 dark:border-gray-600"
                     }`}
                   >
                     {agree && <Check size={12} className="text-white" strokeWidth={3} />}
                   </div>
-                  <span className="text-sm text-gray-600">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
                     I agree to the{" "}
-                    <span className="text-emerald-600 font-medium">Terms of Service</span> and{" "}
-                    <span className="text-emerald-600 font-medium">Privacy Policy</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">Terms of Service</span> and{" "}
+                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">Privacy Policy</span>
                   </span>
                 </label>
 
@@ -170,9 +170,9 @@ export default function Signup() {
                 </button>
               </form>
 
-              <p className="text-center text-sm text-gray-500 mt-6">
+              <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-6">
                 Already have an account?{" "}
-                <Link to="/login" className="text-emerald-600 font-semibold hover:text-emerald-700">
+                <Link to="/login" className="text-emerald-600 dark:text-emerald-400 font-semibold hover:text-emerald-700 dark:hover:text-emerald-300">
                   Sign in
                 </Link>
               </p>
@@ -180,8 +180,8 @@ export default function Signup() {
           ) : (
             <div>
               <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-gray-900 mb-1">How will you use HelloNeighbour?</h2>
-                <p className="text-gray-500 text-sm">Choose the role that best describes you</p>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">How will you use HelloNeighbour?</h2>
+                <p className="text-gray-500 dark:text-gray-400 text-sm">Choose the role that best describes you</p>
               </div>
 
               <div className="space-y-3 mb-6">
@@ -191,27 +191,27 @@ export default function Signup() {
                     onClick={() => setForm({ ...form, role: role.value })}
                     className={`w-full text-left card p-5 transition-all duration-200 hover:shadow-card-hover border-2 ${
                       form.role === role.value
-                        ? "border-emerald-500 bg-emerald-50/50"
-                        : "border-transparent hover:border-gray-200"
+                        ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/10"
+                        : "border-transparent hover:border-gray-200 dark:hover:border-gray-600"
                     }`}
                   >
                     <div className="flex items-start gap-4">
                       <span className="text-3xl mt-0.5">{role.emoji}</span>
                       <div className="flex-1">
                         <div className="flex items-center justify-between mb-1">
-                          <p className="font-semibold text-gray-900">{role.label}</p>
+                          <p className="font-semibold text-gray-900 dark:text-white">{role.label}</p>
                           {form.role === role.value && (
                             <div className="w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center flex-shrink-0">
                               <Check size={12} className="text-white" strokeWidth={3} />
                             </div>
                           )}
                         </div>
-                        <p className="text-sm text-gray-500 mb-2">{role.description}</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">{role.description}</p>
                         <div className="space-y-1">
                           {role.perks.map((perk) => (
                             <div key={perk} className="flex items-center gap-2">
                               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
-                              <span className="text-xs text-gray-600">{perk}</span>
+                              <span className="text-xs text-gray-600 dark:text-gray-400">{perk}</span>
                             </div>
                           ))}
                         </div>
