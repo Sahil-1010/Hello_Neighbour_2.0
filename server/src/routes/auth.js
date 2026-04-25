@@ -2,6 +2,7 @@ const router = require("express").Router();
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const { auth } = require("../middleware/auth");
+const { sendOtp } = require("../services/otp");
 
 const signToken = (user) =>
   jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: "7d" });
@@ -34,7 +35,7 @@ router.post("/signup", async (req, res) => {
       return res.status(409).json({ message: "Email/phone already registered" });
 
     const otp = generateOTP();
-    const otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 min
+    const otpExpiry = new Date(Date.now() + 5 * 60 * 1000);
 
     const user = await User.create({
       name,
@@ -47,14 +48,14 @@ router.post("/signup", async (req, res) => {
       isVerified: false,
     });
 
-    // Production: send OTP via Twilio/SendGrid here
-    console.log(`\n🔐 OTP for ${contact}: ${otp} (expires in 5 min)\n`);
+    const result = await sendOtp(contact, otp);
 
     res.status(201).json({
-      message: "Account created. Check console for OTP (dev mode).",
+      message: result.sent
+        ? `Verification code sent to your ${result.channel}.`
+        : "Account created. Check console for OTP (dev mode).",
       userId: user._id,
-      // Expose OTP in non-production so devs can test without email/SMS setup
-      ...(process.env.NODE_ENV !== "production" && { otp }),
+      ...(result.devMode && { otp }),
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -74,7 +75,7 @@ router.post("/verify-otp", async (req, res) => {
     if (!user.otp || user.otp !== otp)
       return res.status(400).json({ message: "Invalid OTP" });
     if (new Date() > user.otpExpiry)
-      return res.status(400).json({ message: "OTP has expired. Please resend." });
+      return res.status(400).json({ message: "OTP has expired. Please request a new one." });
 
     user.isVerified = true;
     user.otp = undefined;
@@ -104,11 +105,11 @@ router.post("/resend-otp", async (req, res) => {
     user.otpExpiry = new Date(Date.now() + 5 * 60 * 1000);
     await user.save();
 
-    console.log(`\n🔐 Resent OTP for ${user.contact}: ${otp}\n`);
+    const result = await sendOtp(user.contact, otp);
 
     res.json({
-      message: "OTP resent",
-      ...(process.env.NODE_ENV !== "production" && { otp }),
+      message: result.sent ? `OTP resent to your ${result.channel}.` : "OTP resent",
+      ...(result.devMode && { otp }),
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -134,7 +135,6 @@ router.post("/login", async (req, res) => {
       });
 
     await User.findByIdAndUpdate(user._id, { isOnline: true });
-
     res.json({ token: signToken(user), user: sanitize(user) });
   } catch (err) {
     res.status(500).json({ message: err.message });

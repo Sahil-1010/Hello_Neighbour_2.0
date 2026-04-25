@@ -3,24 +3,34 @@ const mongoose = require("mongoose");
 const commentSchema = new mongoose.Schema({
   author: { type: String, required: true },
   avatar: { type: String, default: "" },
-  text: { type: String, required: true },
-  time: { type: String, default: "Just now" },
+  text:   { type: String, required: true },
+  time:   { type: String, default: "Just now" },
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 }, { timestamps: true });
 
 const postSchema = new mongoose.Schema(
   {
-    author: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    content: { type: String, required: true },
-    type: { type: String, enum: ["general", "warning", "help", "offer"], default: "general" },
-    image: { type: String, default: null },
+    author:       { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    content:      { type: String, required: true },
+    type:         { type: String, enum: ["general", "warning", "help", "offer"], default: "general" },
+    image:        { type: String, default: null },
     neighborhood: { type: String, required: true },
-    likes: { type: Number, default: 0 },
-    likedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    reactions: { type: Map, of: Number, default: {} },
+
+    // Geospatial — copied from author's location at post-creation time
+    geoLocation: {
+      type:        { type: String, enum: ["Point"] },
+      coordinates: [Number], // [longitude, latitude]
+    },
+
+    likes:       { type: Number, default: 0 },
+    likedBy:     [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    reactions:   { type: Map, of: Number, default: {} },
     commentList: [commentSchema],
   },
   { timestamps: true }
 );
+
+// Sparse so existing posts without geoLocation are not indexed
+postSchema.index({ geoLocation: "2dsphere" }, { sparse: true });
 
 module.exports = mongoose.model("Post", postSchema);

@@ -50,17 +50,33 @@ export function AppProvider({ children }) {
   const onboardingComplete = !!user?.neighborhood;
   const currentNeighborhood = user?.neighborhood || "";
 
-  // Fetch content when user has a neighborhood
+  // Build query params for geospatial-aware requests.
+  // When the user has valid coordinates from onboarding, pass them so the
+  // backend can use $near for the nearby-users query. Content (posts/jobs/
+  // businesses) continues to use neighborhood-string filtering for backward
+  // compatibility with data created before geolocation was added.
+  function buildGeoParam() {
+    const coords = user?.geoLocation?.coordinates; // [lng, lat] — GeoJSON order
+    if (coords?.length === 2 && (coords[0] !== 0 || coords[1] !== 0)) {
+      return `&lat=${coords[1]}&lng=${coords[0]}`;
+    }
+    return "";
+  }
+
+  // Fetch content whenever the user's neighborhood changes (after onboarding)
   useEffect(() => {
     if (!user?.neighborhood) return;
     const hood = encodeURIComponent(user.neighborhood);
+    const geoParam = buildGeoParam();
+
     api.get(`/posts?neighborhood=${hood}`).then(setPosts).catch(() => {});
     api.get(`/jobs?neighborhood=${hood}`).then(setJobs).catch(() => {});
     api.get(`/businesses?neighborhood=${hood}`).then(setBusinesses).catch(() => {});
-    api.get(`/users?neighborhood=${hood}`).then(setNearbyUsers).catch(() => {});
+    // Nearby users: use geospatial radius when coordinates are available
+    api.get(`/users?neighborhood=${hood}${geoParam}`).then(setNearbyUsers).catch(() => {});
     api.get("/notifications").then(setNotifications).catch(() => {});
     api.get("/messages/conversations").then(setConversations).catch(() => {});
-  }, [user?.neighborhood, user?.id]);
+  }, [user?.neighborhood, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Toast system ──────────────────────────────────────────────────────────
   const [toasts, setToasts] = useState([]);
@@ -109,8 +125,14 @@ export function AppProvider({ children }) {
     setMessages({});
   };
 
-  const completeOnboarding = async (neighborhood, location) => {
-    const data = await api.put("/users/me/neighborhood", { neighborhood, location });
+  // coords: { lat, lng } — collected from browser GPS or mock during onboarding
+  const completeOnboarding = async (neighborhood, location, coords) => {
+    const body = { neighborhood, location };
+    if (coords?.lat !== undefined && coords?.lng !== undefined) {
+      body.lat = coords.lat;
+      body.lng = coords.lng;
+    }
+    const data = await api.put("/users/me/neighborhood", body);
     setUser(data);
   };
 
@@ -133,6 +155,7 @@ export function AppProvider({ children }) {
   };
 
   const toggleLike = async (postId) => {
+    // Optimistic update
     setPosts((prev) =>
       prev.map((p) =>
         p.id === postId ? { ...p, isLiked: !p.isLiked, likes: p.isLiked ? p.likes - 1 : p.likes + 1 } : p
@@ -141,6 +164,7 @@ export function AppProvider({ children }) {
     try {
       await api.put(`/posts/${postId}/like`);
     } catch {
+      // Revert on failure
       setPosts((prev) =>
         prev.map((p) =>
           p.id === postId ? { ...p, isLiked: !p.isLiked, likes: p.isLiked ? p.likes - 1 : p.likes + 1 } : p
@@ -225,7 +249,7 @@ export function AppProvider({ children }) {
   const unreadNotifCount = notifications.filter((n) => !n.isRead).length;
   const unreadMsgCount = conversations.reduce((acc, c) => acc + (c.unread || 0), 0);
 
-  // Aliases for pages that reference filtered variants
+  // Aliases kept for backward compatibility (filtering is now server-side)
   const filteredPosts = posts;
   const filteredJobs = jobs;
   const filteredBusinesses = businesses;

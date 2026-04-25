@@ -7,8 +7,11 @@ router.get("/", auth, async (req, res) => {
   try {
     const { neighborhood, type } = req.query;
     const filter = {};
+
+    // Neighborhood string is the stable primary filter (works with all existing data)
     if (neighborhood) filter.neighborhood = neighborhood;
     if (type && type !== "all") filter.type = type;
+
     const posts = await Post.find(filter)
       .populate("author", "name avatar role businessName location isOnline")
       .sort({ createdAt: -1 })
@@ -23,13 +26,21 @@ router.post("/", auth, async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: "User not found" });
-    const post = await Post.create({
-      author: req.user.id,
-      content: req.body.content,
-      type: req.body.type || "general",
-      image: req.body.image || null,
+
+    const postData = {
+      author:       req.user.id,
+      content:      req.body.content,
+      type:         req.body.type || "general",
+      image:        req.body.image || null,
       neighborhood: user.neighborhood,
-    });
+    };
+
+    // Attach author's geolocation so the post can be found via radius queries later
+    if (hasValidGeo(user.geoLocation)) {
+      postData.geoLocation = user.geoLocation;
+    }
+
+    const post = await Post.create(postData);
     await User.findByIdAndUpdate(req.user.id, { $inc: { postsCount: 1 } });
     const populated = await post.populate("author", "name avatar role businessName location isOnline");
     res.status(201).json(formatPost(populated, req.user.id));
@@ -38,6 +49,7 @@ router.post("/", auth, async (req, res) => {
   }
 });
 
+// Toggle like
 router.put("/:id/like", auth, async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
@@ -62,7 +74,13 @@ router.post("/:id/comments", auth, async (req, res) => {
     const user = await User.findById(req.user.id);
     const post = await Post.findById(req.params.id);
     if (!post) return res.status(404).json({ message: "Post not found" });
-    const comment = { author: user.name, avatar: user.avatar, text: req.body.text, userId: req.user.id, time: "Just now" };
+    const comment = {
+      author: user.name,
+      avatar: user.avatar,
+      text:   req.body.text,
+      userId: req.user.id,
+      time:   "Just now",
+    };
     post.commentList.push(comment);
     await post.save();
     res.status(201).json(post.commentList[post.commentList.length - 1]);
@@ -75,13 +93,23 @@ router.delete("/:id", auth, async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
     if (!post) return res.status(404).json({ message: "Post not found" });
-    if (post.author.toString() !== req.user.id) return res.status(403).json({ message: "Not authorized" });
+    if (post.author.toString() !== req.user.id)
+      return res.status(403).json({ message: "Not authorized" });
     await post.deleteOne();
     res.json({ message: "Post deleted" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function hasValidGeo(geo) {
+  return (
+    geo?.coordinates?.length === 2 &&
+    (geo.coordinates[0] !== 0 || geo.coordinates[1] !== 0)
+  );
+}
 
 function formatPost(post, userId) {
   const obj = post.toObject ? post.toObject() : post;

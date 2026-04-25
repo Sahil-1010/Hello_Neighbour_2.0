@@ -10,6 +10,7 @@ router.get("/", auth, async (req, res) => {
     if (neighborhood) filter.neighborhood = neighborhood;
     if (status && status !== "all") filter.status = status;
     if (category && category !== "All") filter.category = category;
+
     const jobs = await Job.find(filter)
       .populate("postedBy", "name avatar")
       .populate("assignedTo", "name avatar")
@@ -24,7 +25,14 @@ router.get("/", auth, async (req, res) => {
 router.post("/", auth, async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
-    const job = await Job.create({ ...req.body, postedBy: req.user.id, neighborhood: user.neighborhood });
+    const jobData = { ...req.body, postedBy: req.user.id, neighborhood: user.neighborhood };
+
+    // Copy poster's geolocation so the job can be found via radius queries later
+    if (hasValidGeo(user.geoLocation)) {
+      jobData.geoLocation = user.geoLocation;
+    }
+
+    const job = await Job.create(jobData);
     const populated = await job.populate("postedBy", "name avatar");
     res.status(201).json(formatJob(populated));
   } catch (err) {
@@ -37,8 +45,10 @@ router.put("/:id/apply", auth, requireRole("worker"), async (req, res) => {
   try {
     const job = await Job.findById(req.params.id);
     if (!job) return res.status(404).json({ message: "Job not found" });
-    if (job.status !== "pending") return res.status(400).json({ message: "Job is not accepting applications" });
-    if (job.applicantList.includes(req.user.id)) return res.status(400).json({ message: "Already applied" });
+    if (job.status !== "pending")
+      return res.status(400).json({ message: "Job is not accepting applications" });
+    if (job.applicantList.includes(req.user.id))
+      return res.status(400).json({ message: "Already applied" });
     job.applicantList.push(req.user.id);
     job.applicants += 1;
     await job.save();
@@ -52,7 +62,8 @@ router.put("/:id/status", auth, async (req, res) => {
   try {
     const job = await Job.findById(req.params.id);
     if (!job) return res.status(404).json({ message: "Job not found" });
-    if (job.postedBy.toString() !== req.user.id) return res.status(403).json({ message: "Not authorized" });
+    if (job.postedBy.toString() !== req.user.id)
+      return res.status(403).json({ message: "Not authorized" });
     job.status = req.body.status;
     if (req.body.assignedTo) job.assignedTo = req.body.assignedTo;
     await job.save();
@@ -72,13 +83,23 @@ router.delete("/:id", auth, async (req, res) => {
   try {
     const job = await Job.findById(req.params.id);
     if (!job) return res.status(404).json({ message: "Job not found" });
-    if (job.postedBy.toString() !== req.user.id) return res.status(403).json({ message: "Not authorized" });
+    if (job.postedBy.toString() !== req.user.id)
+      return res.status(403).json({ message: "Not authorized" });
     await job.deleteOne();
     res.json({ message: "Job deleted" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function hasValidGeo(geo) {
+  return (
+    geo?.coordinates?.length === 2 &&
+    (geo.coordinates[0] !== 0 || geo.coordinates[1] !== 0)
+  );
+}
 
 function formatJob(job) {
   const obj = job.toObject ? job.toObject() : job;

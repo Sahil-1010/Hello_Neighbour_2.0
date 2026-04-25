@@ -4,6 +4,21 @@ import { MapPin, Search, Users, ChevronRight, Check, Navigation } from "lucide-r
 import { useApp } from "../../context/AppContext";
 import { neighborhoods } from "../../data/mockData";
 
+// Mock coordinates for each neighborhood (NYC area) — used as fallback when
+// browser GPS is unavailable or user skips location detection.
+const NEIGHBORHOOD_COORDS = {
+  "Downtown Heights":  { lat: 40.7128, lng: -74.0060 },
+  "Riverside Park":    { lat: 40.8005, lng: -73.9706 },
+  "Maple Grove":       { lat: 40.7282, lng: -73.7949 },
+  "Sunset Hills":      { lat: 40.6501, lng: -73.9496 },
+  "Harbor View":       { lat: 40.6892, lng: -74.0445 },
+  "Oak Valley":        { lat: 40.7614, lng: -73.9776 },
+  "Northgate":         { lat: 40.7831, lng: -73.9712 },
+  "Westfield":         { lat: 40.7282, lng: -74.0776 },
+  "Eastside Commons":  { lat: 40.7282, lng: -73.9146 },
+  "Greenwood":         { lat: 40.6501, lng: -73.9776 },
+};
+
 const mapPins = [
   { id: 1, x: 30, y: 40, label: "You", color: "bg-emerald-500", isYou: true },
   { id: 2, x: 55, y: 25, label: "James", color: "bg-blue-500" },
@@ -16,25 +31,70 @@ const mapPins = [
 export default function Onboarding() {
   const { user, completeOnboarding } = useApp();
   const navigate = useNavigate();
+
   const [step, setStep] = useState(1);
   const [location, setLocation] = useState("");
+  const [coords, setCoords] = useState(null);           // { lat, lng }
   const [locating, setLocating] = useState(false);
   const [located, setLocated] = useState(false);
+  const [gpsSource, setGpsSource] = useState(null);    // "gps" | "mock"
   const [selectedNeighborhood, setSelectedNeighborhood] = useState(null);
   const [searchNeighborhood, setSearchNeighborhood] = useState("");
+  const [finishing, setFinishing] = useState(false);
 
-  const handleDetectLocation = async () => {
+  // Try real browser GPS first; fall back to mock coords for the first neighborhood
+  const handleDetectLocation = () => {
     setLocating(true);
-    await new Promise((r) => setTimeout(r, 1500));
-    setLocation("Maple Street, Downtown Heights");
-    setLocated(true);
-    setLocating(false);
+
+    const applyMock = () => {
+      const mockCoords = NEIGHBORHOOD_COORDS["Downtown Heights"];
+      setCoords(mockCoords);
+      setLocation("Approximate Location (GPS unavailable)");
+      setGpsSource("mock");
+      setLocated(true);
+      setLocating(false);
+    };
+
+    if (!navigator.geolocation) {
+      applyMock();
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setLocation("Current Location (GPS)");
+        setGpsSource("gps");
+        setLocated(true);
+        setLocating(false);
+      },
+      () => applyMock(),
+      { timeout: 8000, maximumAge: 60000 }
+    );
+  };
+
+  // When a neighborhood is chosen, pre-fill mock coords if GPS was not used
+  const handleSelectNeighborhood = (hood) => {
+    setSelectedNeighborhood(hood);
+    if (!coords || gpsSource === "mock") {
+      setCoords(NEIGHBORHOOD_COORDS[hood.name] || NEIGHBORHOOD_COORDS["Downtown Heights"]);
+    }
   };
 
   const handleFinish = async () => {
-    const hood = selectedNeighborhood || neighborhoods[0];
-    await completeOnboarding(hood.name, location || "Maple Street, Downtown Heights");
-    navigate("/");
+    if (!selectedNeighborhood) return;
+    setFinishing(true);
+    const finalCoords = coords || NEIGHBORHOOD_COORDS[selectedNeighborhood.name];
+    try {
+      await completeOnboarding(
+        selectedNeighborhood.name,
+        location || "Approximate Location",
+        finalCoords
+      );
+      navigate("/");
+    } finally {
+      setFinishing(false);
+    }
   };
 
   const filteredNeighborhoods = neighborhoods.filter((n) =>
@@ -53,11 +113,9 @@ export default function Onboarding() {
           <div className="flex items-center gap-2">
             {[1, 2].map((s) => (
               <div key={s} className="flex items-center gap-1">
-                <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                    step >= s ? "bg-emerald-500 text-white" : "bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
-                  }`}
-                >
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                  step >= s ? "bg-emerald-500 text-white" : "bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
+                }`}>
                   {step > s ? <Check size={14} strokeWidth={3} /> : s}
                 </div>
                 {s < 2 && <div className={`w-8 h-0.5 ${step > s ? "bg-emerald-500" : "bg-gray-200 dark:bg-gray-700"} transition-all`} />}
@@ -69,13 +127,12 @@ export default function Onboarding() {
 
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-2xl">
-          {step === 1 ? (
-            /* Step 1 — Location */
+
+          {/* ── Step 1: Location ── */}
+          {step === 1 && (
             <div>
               <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-2xl flex items-center justify-center mx-auto mb-4 text-3xl">
-                  📍
-                </div>
+                <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-2xl flex items-center justify-center mx-auto mb-4 text-3xl">📍</div>
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
                   Welcome, {user?.name?.split(" ")[0]}!
                 </h1>
@@ -84,55 +141,48 @@ export default function Onboarding() {
                 </p>
               </div>
 
-              {/* Simulated Map */}
+              {/* Simulated map */}
               <div className="card overflow-hidden mb-6">
                 <div className="relative h-56 bg-gradient-to-br from-emerald-50 dark:from-gray-700 to-teal-50 dark:to-gray-800 border-b border-gray-100 dark:border-gray-700">
-                  {/* Grid lines */}
                   <div className="absolute inset-0 opacity-20 dark:opacity-10">
                     {[...Array(6)].map((_, i) => (
-                      <div key={i} className="absolute border-gray-400" style={{
-                        left: `${i * 20}%`, top: 0, bottom: 0, borderLeftWidth: 1,
-                      }} />
+                      <div key={i} className="absolute border-gray-400" style={{ left: `${i * 20}%`, top: 0, bottom: 0, borderLeftWidth: 1 }} />
                     ))}
                     {[...Array(5)].map((_, i) => (
-                      <div key={i} className="absolute border-gray-400" style={{
-                        top: `${i * 25}%`, left: 0, right: 0, borderTopWidth: 1,
-                      }} />
+                      <div key={i} className="absolute border-gray-400" style={{ top: `${i * 25}%`, left: 0, right: 0, borderTopWidth: 1 }} />
                     ))}
                   </div>
 
-                  {/* Radius circle */}
                   {located && (
-                    <div
-                      className="absolute rounded-full border-2 border-emerald-400 dark:border-emerald-600 bg-emerald-400/10 transition-all duration-700"
-                      style={{ width: "60%", height: "90%", left: "5%", top: "5%" }}
-                    />
+                    <div className="absolute rounded-full border-2 border-emerald-400 dark:border-emerald-600 bg-emerald-400/10 transition-all duration-700"
+                      style={{ width: "60%", height: "90%", left: "5%", top: "5%" }} />
                   )}
 
-                  {/* Map pins */}
                   {mapPins.map((pin) => (
-                    <div
-                      key={pin.id}
-                      className="absolute transform -translate-x-1/2 -translate-y-1/2 group"
-                      style={{ left: `${pin.x}%`, top: `${pin.y}%` }}
-                    >
-                      <div
-                        className={`${pin.color} ${
-                          pin.isYou ? "w-5 h-5 ring-4 ring-emerald-200 dark:ring-emerald-900" : "w-3.5 h-3.5"
-                        } rounded-full shadow-md transition-transform group-hover:scale-125`}
-                      />
+                    <div key={pin.id} className="absolute transform -translate-x-1/2 -translate-y-1/2 group"
+                      style={{ left: `${pin.x}%`, top: `${pin.y}%` }}>
+                      <div className={`${pin.color} ${pin.isYou ? "w-5 h-5 ring-4 ring-emerald-200 dark:ring-emerald-900" : "w-3.5 h-3.5"} rounded-full shadow-md transition-transform group-hover:scale-125`} />
                       {pin.isYou && (
-                        <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-emerald-500 text-white text-xs px-2 py-0.5 rounded-full whitespace-nowrap shadow-sm">
-                          You
-                        </div>
+                        <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-emerald-500 text-white text-xs px-2 py-0.5 rounded-full whitespace-nowrap shadow-sm">You</div>
                       )}
                     </div>
                   ))}
 
-                  {/* Overlay label */}
                   <div className="absolute bottom-3 right-3 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-xl px-3 py-1.5 shadow-sm">
                     <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">5 km radius view</span>
                   </div>
+
+                  {/* GPS quality badge */}
+                  {gpsSource && (
+                    <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-full text-[10px] font-semibold flex items-center gap-1 ${
+                      gpsSource === "gps"
+                        ? "bg-emerald-500 text-white"
+                        : "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-700"
+                    }`}>
+                      <Navigation size={9} />
+                      {gpsSource === "gps" ? "GPS located" : "Approximate location"}
+                    </div>
+                  )}
                 </div>
 
                 <div className="p-4 space-y-3">
@@ -161,15 +211,9 @@ export default function Onboarding() {
                         Detecting location...
                       </>
                     ) : located ? (
-                      <>
-                        <Check size={16} className="text-emerald-600 dark:text-emerald-400" />
-                        Location detected!
-                      </>
+                      <><Check size={16} className="text-emerald-600 dark:text-emerald-400" /> Location set!</>
                     ) : (
-                      <>
-                        <Navigation size={16} />
-                        Use my current location
-                      </>
+                      <><Navigation size={16} /> Use my current location</>
                     )}
                   </button>
                 </div>
@@ -183,20 +227,19 @@ export default function Onboarding() {
                 Continue — Choose Neighborhood →
               </button>
             </div>
-          ) : (
-            /* Step 2 — Neighborhood */
+          )}
+
+          {/* ── Step 2: Neighborhood ── */}
+          {step === 2 && (
             <div>
               <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-2xl flex items-center justify-center mx-auto mb-4 text-3xl">
-                  🏘️
-                </div>
+                <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-2xl flex items-center justify-center mx-auto mb-4 text-3xl">🏘️</div>
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Join a Neighborhood</h1>
                 <p className="text-gray-500 dark:text-gray-400 text-sm">
                   Communities within 5 km of your location. Join to connect with nearby residents.
                 </p>
               </div>
 
-              {/* Search */}
               <div className="relative mb-4">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
@@ -212,7 +255,7 @@ export default function Onboarding() {
                 {filteredNeighborhoods.map((hood) => (
                   <button
                     key={hood.id}
-                    onClick={() => setSelectedNeighborhood(hood)}
+                    onClick={() => handleSelectNeighborhood(hood)}
                     className={`w-full card p-4 text-left hover:shadow-card-hover transition-all border-2 ${
                       selectedNeighborhood?.id === hood.id
                         ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/10"
@@ -220,21 +263,17 @@ export default function Onboarding() {
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-9 h-9 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl flex items-center justify-center text-lg">🏡</div>
-                          <div>
-                            <p className="font-semibold text-gray-900 dark:text-white">{hood.name}</p>
-                            <div className="flex items-center gap-3 mt-0.5">
-                              <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                                <Users size={11} />
-                                {hood.members.toLocaleString()} members
-                              </span>
-                              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
-                                <MapPin size={11} />
-                                {hood.distance}
-                              </span>
-                            </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-9 h-9 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl flex items-center justify-center text-lg">🏡</div>
+                        <div>
+                          <p className="font-semibold text-gray-900 dark:text-white">{hood.name}</p>
+                          <div className="flex items-center gap-3 mt-0.5">
+                            <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                              <Users size={11} />{hood.members.toLocaleString()} members
+                            </span>
+                            <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                              <MapPin size={11} />{hood.distance}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -251,19 +290,20 @@ export default function Onboarding() {
               </div>
 
               <div className="flex gap-3">
-                <button onClick={() => setStep(1)} className="btn-secondary px-6 py-3">
-                  ← Back
-                </button>
+                <button onClick={() => setStep(1)} className="btn-secondary px-6 py-3">← Back</button>
                 <button
                   onClick={handleFinish}
-                  disabled={!selectedNeighborhood}
+                  disabled={!selectedNeighborhood || finishing}
                   className="btn-primary flex-1 py-3 text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  Enter My Neighborhood 🎉
+                  {finishing ? (
+                    <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Setting up...</>
+                  ) : "Enter My Neighborhood 🎉"}
                 </button>
               </div>
             </div>
           )}
+
         </div>
       </div>
     </div>
