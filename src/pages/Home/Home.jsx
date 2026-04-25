@@ -3,7 +3,6 @@ import { Plus } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 import PostCard from "../../components/common/PostCard";
 import CreatePostModal from "../../components/home/CreatePostModal";
-import { users } from "../../data/mockData";
 import { Link } from "react-router-dom";
 
 const filters = [
@@ -14,8 +13,8 @@ const filters = [
 ];
 
 function StoriesRow() {
-  const { user } = useApp();
-  const storyUsers = [user, ...users.slice(0, 5)];
+  const { user, nearbyUsers } = useApp();
+  const storyUsers = [user, ...nearbyUsers.slice(0, 5)];
   return (
     <div className="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
       <div className="flex gap-3 px-4 py-4 overflow-x-auto hide-scrollbar">

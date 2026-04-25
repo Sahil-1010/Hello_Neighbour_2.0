@@ -1,21 +1,17 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
-import {
-  currentUser,
-  posts as initialPosts,
-  jobs as initialJobs,
-  notifications as initialNotifications,
-  conversations as initialConversations,
-  messages as initialMessages,
-  extendedBusinesses,
-} from "../data/mockData";
+import { api } from "../services/api";
 
 const AppContext = createContext();
+
+const neighborhoods = [
+  "Downtown Heights", "Riverside Park", "Maple Grove", "Sunset Hills", "Harbor View",
+  "Oak Valley", "Northgate", "Westfield", "Eastside Commons", "Greenwood",
+];
 
 export function AppProvider({ children }) {
   // ── Auth ──────────────────────────────────────────────────────────────────
   const [user, setUser] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [onboardingComplete, setOnboardingComplete] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
 
   // ── Dark mode (persisted) ──────────────────────────────────────────────────
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -30,31 +26,41 @@ export function AppProvider({ children }) {
 
   const toggleDarkMode = () => setIsDarkMode((d) => !d);
 
-  // ── Neighborhood ──────────────────────────────────────────────────────────
-  const [currentNeighborhood, setCurrentNeighborhood] = useState("Downtown Heights");
-
-  const switchNeighborhood = (name) => {
-    setCurrentNeighborhood(name);
-    addToast({ type: "info", message: `Switched to ${name}` });
-  };
+  // Validate stored token on mount
+  useEffect(() => {
+    const token = localStorage.getItem("hn_token");
+    if (!token) { setAuthLoading(false); return; }
+    api.get("/auth/me")
+      .then((data) => setUser(data))
+      .catch(() => localStorage.removeItem("hn_token"))
+      .finally(() => setAuthLoading(false));
+  }, []);
 
   // ── Content ───────────────────────────────────────────────────────────────
-  const [posts, setPosts] = useState(initialPosts);
-  const [jobs, setJobs] = useState(initialJobs);
-  const [notifications, setNotifications] = useState(initialNotifications);
-  const [conversations, setConversations] = useState(initialConversations);
-  const [messages, setMessages] = useState(initialMessages);
+  const [posts, setPosts] = useState([]);
+  const [jobs, setJobs] = useState([]);
+  const [businesses, setBusinesses] = useState([]);
+  const [nearbyUsers, setNearbyUsers] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [messages, setMessages] = useState({});
 
-  // Neighborhood-filtered slices (no neighborhood field = show everywhere)
-  const filteredPosts = posts.filter(
-    (p) => !p.neighborhood || p.neighborhood === currentNeighborhood
-  );
-  const filteredJobs = jobs.filter(
-    (j) => !j.neighborhood || j.neighborhood === currentNeighborhood
-  );
-  const filteredBusinesses = extendedBusinesses.filter(
-    (b) => !b.neighborhood || b.neighborhood === currentNeighborhood
-  );
+  // Derived auth state
+  const isAuthenticated = !!user;
+  const onboardingComplete = !!user?.neighborhood;
+  const currentNeighborhood = user?.neighborhood || "";
+
+  // Fetch content when user has a neighborhood
+  useEffect(() => {
+    if (!user?.neighborhood) return;
+    const hood = encodeURIComponent(user.neighborhood);
+    api.get(`/posts?neighborhood=${hood}`).then(setPosts).catch(() => {});
+    api.get(`/jobs?neighborhood=${hood}`).then(setJobs).catch(() => {});
+    api.get(`/businesses?neighborhood=${hood}`).then(setBusinesses).catch(() => {});
+    api.get(`/users?neighborhood=${hood}`).then(setNearbyUsers).catch(() => {});
+    api.get("/notifications").then(setNotifications).catch(() => {});
+    api.get("/messages/conversations").then(setConversations).catch(() => {});
+  }, [user?.neighborhood, user?.id]);
 
   // ── Toast system ──────────────────────────────────────────────────────────
   const [toasts, setToasts] = useState([]);
@@ -69,118 +75,132 @@ export function AppProvider({ children }) {
   }, []);
 
   // ── Auth actions ──────────────────────────────────────────────────────────
-  const login = (email, role = "normal") => {
-    setUser({ ...currentUser, email, role });
-    setIsAuthenticated(true);
+  const login = async (username, password) => {
+    const data = await api.post("/auth/login", { username, password });
+    localStorage.setItem("hn_token", data.token);
+    setUser(data.user);
+    return data;
   };
 
-  const signup = (name, email, role) => {
-    setUser({ ...currentUser, name, email, role });
-    setIsAuthenticated(true);
+  const signup = async (formData) => {
+    return await api.post("/auth/signup", formData);
+  };
+
+  const verifyOtp = async (userId, otp) => {
+    const data = await api.post("/auth/verify-otp", { userId, otp });
+    localStorage.setItem("hn_token", data.token);
+    setUser(data.user);
+    return data;
+  };
+
+  const resendOtp = async (userId) => {
+    return await api.post("/auth/resend-otp", { userId });
   };
 
   const logout = () => {
+    localStorage.removeItem("hn_token");
     setUser(null);
-    setIsAuthenticated(false);
-    setOnboardingComplete(false);
+    setPosts([]);
+    setJobs([]);
+    setBusinesses([]);
+    setNearbyUsers([]);
+    setNotifications([]);
+    setConversations([]);
+    setMessages({});
   };
 
-  const completeOnboarding = (neighborhood, location) => {
-    setUser((prev) => ({ ...prev, neighborhood, location }));
-    setCurrentNeighborhood(neighborhood);
-    setOnboardingComplete(true);
+  const completeOnboarding = async (neighborhood, location) => {
+    const data = await api.put("/users/me/neighborhood", { neighborhood, location });
+    setUser(data);
   };
 
-  const switchRole = (role) => {
-    setUser((prev) => ({ ...prev, role }));
-    addToast({ type: "success", message: `Switched to ${role === "normal" ? "Community Member" : role === "worker" ? "Worker" : "Business Owner"} role` });
+  const switchRole = async (role) => {
+    const data = await api.put(`/users/${user.id}`, { role });
+    setUser((prev) => ({ ...prev, role: data.role }));
+    const label = role === "normal" ? "Community Member" : role === "worker" ? "Worker" : "Business Owner";
+    addToast({ type: "success", message: `Switched to ${label} role` });
+  };
+
+  const switchNeighborhood = (name) => {
+    addToast({ type: "info", message: `Switched to ${name}` });
   };
 
   // ── Post actions ──────────────────────────────────────────────────────────
-  const addPost = (postData) => {
-    const newPost = {
-      id: Date.now(),
-      author: { id: user.id, name: user.name, avatar: user.avatar, role: user.role, location: user.location },
-      timestamp: "Just now",
-      likes: 0, comments: 0, reactions: {}, isLiked: false, commentList: [],
-      neighborhood: currentNeighborhood,
-      ...postData,
-    };
+  const addPost = async (postData) => {
+    const newPost = await api.post("/posts", postData);
     setPosts((prev) => [newPost, ...prev]);
     addToast({ type: "success", message: "Post shared with your neighborhood! 🎉" });
   };
 
-  const toggleLike = (postId) => {
+  const toggleLike = async (postId) => {
     setPosts((prev) =>
       prev.map((p) =>
-        p.id === postId
-          ? { ...p, isLiked: !p.isLiked, likes: p.isLiked ? p.likes - 1 : p.likes + 1 }
-          : p
+        p.id === postId ? { ...p, isLiked: !p.isLiked, likes: p.isLiked ? p.likes - 1 : p.likes + 1 } : p
       )
     );
+    try {
+      await api.put(`/posts/${postId}/like`);
+    } catch {
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === postId ? { ...p, isLiked: !p.isLiked, likes: p.isLiked ? p.likes - 1 : p.likes + 1 } : p
+        )
+      );
+    }
   };
 
-  const addComment = (postId, text) => {
+  const addComment = async (postId, text) => {
+    const comment = await api.post(`/posts/${postId}/comments`, { text });
     setPosts((prev) =>
       prev.map((p) =>
         p.id === postId
-          ? {
-              ...p,
-              comments: p.comments + 1,
-              commentList: [
-                ...p.commentList,
-                { id: Date.now(), author: user.name, avatar: user.avatar, text, time: "Just now" },
-              ],
-            }
+          ? { ...p, comments: p.comments + 1, commentList: [...(p.commentList || []), comment] }
           : p
       )
     );
   };
 
   // ── Job actions ───────────────────────────────────────────────────────────
-  const addJob = (jobData) => {
-    const newJob = {
-      id: Date.now(),
-      postedBy: { id: user.id, name: user.name, avatar: user.avatar },
-      status: "pending", postedAt: "Just now", applicants: 0, urgency: "normal",
-      neighborhood: currentNeighborhood,
-      ...jobData,
-    };
+  const addJob = async (jobData) => {
+    const newJob = await api.post("/jobs", jobData);
     setJobs((prev) => [newJob, ...prev]);
     addToast({ type: "success", message: "Job posted! Workers nearby will see it." });
   };
 
-  const applyForJob = (jobId) => {
-    setJobs((prev) =>
-      prev.map((j) => j.id === jobId ? { ...j, applicants: j.applicants + 1 } : j)
-    );
+  const applyForJob = async (jobId) => {
+    await api.put(`/jobs/${jobId}/apply`);
+    setJobs((prev) => prev.map((j) => j.id === jobId ? { ...j, applicants: j.applicants + 1 } : j));
     addToast({ type: "info", message: "Application submitted successfully!" });
   };
 
-  const updateJobStatus = (jobId, status) => {
-    setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, status } : j)));
+  const updateJobStatus = async (jobId, status) => {
+    await api.put(`/jobs/${jobId}/status`, { status });
+    setJobs((prev) => prev.map((j) => j.id === jobId ? { ...j, status } : j));
     const msg = { ongoing: "Job started! 🚀", completed: "Job marked as completed! ✅" };
     if (msg[status]) addToast({ type: "success", message: msg[status] });
   };
 
   // ── Notification actions ──────────────────────────────────────────────────
-  const markNotificationRead = (notifId) => {
-    setNotifications((prev) => prev.map((n) => (n.id === notifId ? { ...n, isRead: true } : n)));
+  const markNotificationRead = async (notifId) => {
+    await api.put(`/notifications/${notifId}/read`);
+    setNotifications((prev) => prev.map((n) => n.id === notifId ? { ...n, isRead: true } : n));
   };
 
-  const markAllRead = () => {
+  const markAllRead = async () => {
+    await api.put("/notifications/read-all");
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
     addToast({ type: "success", message: "All notifications marked as read" });
   };
 
   // ── Chat actions ──────────────────────────────────────────────────────────
-  const sendMessage = (conversationId, text) => {
-    const newMsg = {
-      id: Date.now(),
-      senderId: user.id,
-      text,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    };
+  const loadMessages = async (conversationId) => {
+    const msgs = await api.get(`/messages/conversations/${conversationId}`);
+    setMessages((prev) => ({ ...prev, [conversationId]: msgs }));
+    return msgs;
+  };
+
+  const sendMessage = async (conversationId, text) => {
+    const newMsg = await api.post(`/messages/conversations/${conversationId}`, { text });
     setMessages((prev) => ({
       ...prev,
       [conversationId]: [...(prev[conversationId] || []), newMsg],
@@ -190,26 +210,39 @@ export function AppProvider({ children }) {
         c.id === conversationId ? { ...c, lastMessage: text, timestamp: "Just now", unread: 0 } : c
       )
     );
-    addToast({ type: "success", message: "Message sent ✓", duration: 2000 });
+  };
+
+  const startConversation = async (recipientId) => {
+    const conv = await api.post("/messages/conversations", { recipientId });
+    setConversations((prev) => {
+      if (prev.find((c) => c.id === conv.id)) return prev;
+      return [conv, ...prev];
+    });
+    return conv;
   };
 
   // ── Derived counts ────────────────────────────────────────────────────────
   const unreadNotifCount = notifications.filter((n) => !n.isRead).length;
-  const unreadMsgCount = conversations.reduce((acc, c) => acc + c.unread, 0);
+  const unreadMsgCount = conversations.reduce((acc, c) => acc + (c.unread || 0), 0);
+
+  // Aliases for pages that reference filtered variants
+  const filteredPosts = posts;
+  const filteredJobs = jobs;
+  const filteredBusinesses = businesses;
 
   return (
     <AppContext.Provider
       value={{
         // auth
-        user, isAuthenticated, onboardingComplete,
-        login, signup, logout, completeOnboarding, switchRole,
+        user, isAuthenticated, onboardingComplete, authLoading,
+        login, signup, verifyOtp, resendOtp, logout, completeOnboarding, switchRole,
         // theme
         isDarkMode, toggleDarkMode,
         // neighborhood
-        currentNeighborhood, switchNeighborhood,
-        // raw data
-        posts, jobs, notifications, conversations, messages,
-        // filtered data
+        currentNeighborhood, switchNeighborhood, neighborhoods,
+        // data
+        posts, jobs, businesses, nearbyUsers, notifications, conversations, messages,
+        // aliases
         filteredPosts, filteredJobs, filteredBusinesses,
         // counts
         unreadNotifCount, unreadMsgCount,
@@ -220,7 +253,7 @@ export function AppProvider({ children }) {
         // notification actions
         markNotificationRead, markAllRead,
         // chat
-        sendMessage,
+        loadMessages, sendMessage, startConversation,
         // toasts
         toasts, addToast, removeToast,
       }}

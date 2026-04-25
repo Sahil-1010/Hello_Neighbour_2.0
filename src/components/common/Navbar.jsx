@@ -5,7 +5,6 @@ import {
   Moon, Sun, Building2, Check,
 } from "lucide-react";
 import { useApp } from "../../context/AppContext";
-import { neighborhoods } from "../../data/mockData";
 
 const roleLabels = {
   normal: { label: "Community Member", emoji: "👋", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" },
@@ -14,27 +13,24 @@ const roleLabels = {
 };
 
 function NeighborhoodDropdown({ onClose }) {
-  const { currentNeighborhood, switchNeighborhood } = useApp();
+  const { currentNeighborhood, switchNeighborhood, neighborhoods } = useApp();
   return (
     <div className="absolute left-0 top-full mt-2 w-64 bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 py-2 z-30 animate-fade-in">
       <p className="px-4 py-2 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">
         Switch Neighborhood
       </p>
-      {neighborhoods.map((hood) => {
-        const isActive = hood.name === currentNeighborhood;
+      {neighborhoods.map((name) => {
+        const isActive = name === currentNeighborhood;
         return (
           <button
-            key={hood.id}
-            onClick={() => { switchNeighborhood(hood.name); onClose(); }}
+            key={name}
+            onClick={() => { switchNeighborhood(name); onClose(); }}
             className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           >
             <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center text-sm">🏘️</div>
-            <div className="flex-1 text-left">
-              <p className={`text-sm font-medium ${isActive ? "text-emerald-600 dark:text-emerald-400" : "text-gray-800 dark:text-gray-200"}`}>
-                {hood.name}
-              </p>
-              <p className="text-xs text-gray-400 dark:text-gray-500">{hood.members.toLocaleString()} members · {hood.distance}</p>
-            </div>
+            <p className={`flex-1 text-left text-sm font-medium ${isActive ? "text-emerald-600 dark:text-emerald-400" : "text-gray-800 dark:text-gray-200"}`}>
+              {name}
+            </p>
             {isActive && <Check size={15} className="text-emerald-500 flex-shrink-0" />}
           </button>
         );

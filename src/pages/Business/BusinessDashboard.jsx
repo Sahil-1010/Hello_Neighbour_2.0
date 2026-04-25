@@ -4,7 +4,6 @@ import {
   Briefcase, ToggleLeft, ToggleRight, ChevronRight, BarChart3, Users, Clock,
 } from "lucide-react";
 import { useApp } from "../../context/AppContext";
-import { businesses, jobs } from "../../data/mockData";
 import Modal from "../../components/common/Modal";
 
 function StatCard({ icon: Icon, label, value, change, color }) {
@@ -117,9 +116,9 @@ function CreateOfferModal({ isOpen, onClose }) {
 }
 
 export default function BusinessDashboard() {
-  const { user } = useApp();
+  const { user, businesses, jobs } = useApp();
   const [showOfferModal, setShowOfferModal] = useState(false);
-  const business = businesses[0];
+  const business = businesses.find((b) => b.owner?._id === user?.id || b.owner === user?.id) || businesses[0];
   const businessJobs = jobs.filter((j) => j.status !== "completed").slice(0, 3);
 
   const stats = [

@@ -1,7 +1,6 @@
 import { useParams, Link } from "react-router-dom";
 import { Star, MapPin, MessageCircle, UserPlus, Briefcase, FileText, Award, Calendar, Clock } from "lucide-react";
 import { useApp } from "../../context/AppContext";
-import { users, currentUser as defaultUser } from "../../data/mockData";
 import PostCard from "../../components/common/PostCard";
 
 const roleColors = {
@@ -50,14 +49,12 @@ const mockReviews = [
 
 export default function Profile() {
   const { id } = useParams();
-  const { user, posts } = useApp();
+  const { user, posts, nearbyUsers } = useApp();
 
-  const profileUser =
-    parseInt(id) === 1
-      ? { ...defaultUser, ...user }
-      : users.find((u) => u.id === parseInt(id)) || users[0];
-
-  const isOwnProfile = parseInt(id) === user?.id || parseInt(id) === 1;
+  const isOwnProfile = id === user?.id;
+  const profileUser = isOwnProfile
+    ? user
+    : nearbyUsers.find((u) => u.id === id) || user;
   const userPosts = posts.slice(0, 3);
 
   const stats = [

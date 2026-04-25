@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { MapPin, Search, Users, ChevronRight, Check, Navigation } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 import { neighborhoods } from "../../data/mockData";
@@ -14,6 +15,7 @@ const mapPins = [
 
 export default function Onboarding() {
   const { user, completeOnboarding } = useApp();
+  const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [location, setLocation] = useState("");
   const [locating, setLocating] = useState(false);
@@ -31,7 +33,8 @@ export default function Onboarding() {
 
   const handleFinish = async () => {
     const hood = selectedNeighborhood || neighborhoods[0];
-    completeOnboarding(hood.name, location || "Maple Street, Downtown Heights");
+    await completeOnboarding(hood.name, location || "Maple Street, Downtown Heights");
+    navigate("/");
   };
 
   const filteredNeighborhoods = neighborhoods.filter((n) =>

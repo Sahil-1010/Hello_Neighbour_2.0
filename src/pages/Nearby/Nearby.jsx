@@ -2,7 +2,7 @@ import { useState } from "react";
 import { MapPin, Star, MessageCircle, Search, Users, Building2, Wrench, UserCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
-import { users, workerCategories } from "../../data/mockData";
+import { workerCategories } from "../../data/mockData";
 
 const tabs = [
   { id: "people", label: "People", icon: Users },
@@ -149,14 +149,13 @@ function BusinessCard({ business }) {
 }
 
 export default function Nearby() {
-  const { filteredBusinesses, currentNeighborhood } = useApp();
+  const { filteredBusinesses, currentNeighborhood, nearbyUsers } = useApp();
   const [activeTab, setActiveTab] = useState("people");
   const [activeCategory, setActiveCategory] = useState("All");
   const [search, setSearch] = useState("");
 
-  const neighborhoodUsers = users.filter((u) => !u.neighborhood || u.neighborhood === currentNeighborhood);
-  const workers = neighborhoodUsers.filter((u) => u.role === "worker");
-  const people = neighborhoodUsers.filter((u) => u.role !== "business");
+  const workers = nearbyUsers.filter((u) => u.role === "worker");
+  const people = nearbyUsers.filter((u) => u.role !== "business");
 
   const filteredPeople = people.filter((u) => !search || u.name.toLowerCase().includes(search.toLowerCase()));
   const filteredWorkers = workers.filter((u) =>

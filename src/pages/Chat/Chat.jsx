@@ -63,7 +63,7 @@ function MessageBubble({ message, isOwn, prevOwn }) {
 }
 
 export default function Chat() {
-  const { user, conversations, messages, sendMessage } = useApp();
+  const { user, conversations, messages, sendMessage, loadMessages } = useApp();
   const [activeConv, setActiveConv] = useState(null);
   const [inputText, setInputText] = useState("");
   const [search, setSearch] = useState("");
@@ -90,6 +90,7 @@ export default function Chat() {
   const handleSelectConv = (conv) => {
     setActiveConv(conv);
     setShowConvList(false);
+    if (!messages[conv.id]) loadMessages(conv.id).catch(() => {});
   };
 
   return (

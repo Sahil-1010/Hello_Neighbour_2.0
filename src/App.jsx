@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useApp } from "./context/AppContext";
 import Layout from "./components/common/Layout";
 import Login from "./pages/Auth/Login";
@@ -13,15 +13,37 @@ import BusinessDashboard from "./pages/Business/BusinessDashboard";
 import Businesses from "./pages/Businesses/Businesses";
 import Notifications from "./pages/Notifications/Notifications";
 
-function ProtectedRoute({ children }) {
-  const { isAuthenticated, onboardingComplete } = useApp();
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (!onboardingComplete) return <Navigate to="/onboarding" replace />;
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-14 h-14 bg-emerald-500 rounded-2xl flex items-center justify-center mx-auto mb-4 text-3xl animate-pulse">
+          🏘️
+        </div>
+        <p className="text-gray-500 dark:text-gray-400 text-sm">Loading...</p>
+      </div>
+    </div>
+  );
+}
+
+function ProtectedRoute({ children, requiredRole }) {
+  const { user, authLoading, onboardingComplete } = useApp();
+  const location = useLocation();
+
+  if (authLoading) return <LoadingScreen />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!onboardingComplete && location.pathname !== "/onboarding")
+    return <Navigate to="/onboarding" replace />;
+  if (requiredRole && user.role !== requiredRole)
+    return <Navigate to="/" replace />;
+
   return <Layout>{children}</Layout>;
 }
 
 export default function App() {
-  const { isAuthenticated, onboardingComplete } = useApp();
+  const { user, authLoading, onboardingComplete } = useApp();
+
+  if (authLoading) return <LoadingScreen />;
 
   return (
     <BrowserRouter>
@@ -29,27 +51,19 @@ export default function App() {
         <Route
           path="/login"
           element={
-            isAuthenticated ? (
-              <Navigate to={onboardingComplete ? "/" : "/onboarding"} replace />
-            ) : (
-              <Login />
-            )
+            user ? <Navigate to={onboardingComplete ? "/" : "/onboarding"} replace /> : <Login />
           }
         />
         <Route
           path="/signup"
           element={
-            isAuthenticated ? (
-              <Navigate to={onboardingComplete ? "/" : "/onboarding"} replace />
-            ) : (
-              <Signup />
-            )
+            user ? <Navigate to={onboardingComplete ? "/" : "/onboarding"} replace /> : <Signup />
           }
         />
         <Route
           path="/onboarding"
           element={
-            !isAuthenticated ? (
+            !user ? (
               <Navigate to="/login" replace />
             ) : onboardingComplete ? (
               <Navigate to="/" replace />
@@ -64,7 +78,7 @@ export default function App() {
         <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
         <Route path="/jobs" element={<ProtectedRoute><Jobs /></ProtectedRoute>} />
         <Route path="/businesses" element={<ProtectedRoute><Businesses /></ProtectedRoute>} />
-        <Route path="/business" element={<ProtectedRoute><BusinessDashboard /></ProtectedRoute>} />
+        <Route path="/business" element={<ProtectedRoute requiredRole="business"><BusinessDashboard /></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

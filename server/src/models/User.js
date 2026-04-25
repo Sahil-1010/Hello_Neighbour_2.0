@@ -4,10 +4,14 @@ const bcrypt = require("bcryptjs");
 const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
-    email: { type: String, required: true, unique: true, lowercase: true },
+    username: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    contact: { type: String, required: true, unique: true, trim: true }, // email or phone
     password: { type: String, required: true, select: false },
-    username: { type: String, trim: true },
     role: { type: String, enum: ["normal", "worker", "business"], default: "normal" },
+    isVerified: { type: Boolean, default: false },
+    otp: { type: String, select: false },
+    otpExpiry: { type: Date, select: false },
+    // Profile
     avatar: { type: String, default: "" },
     coverImage: { type: String, default: "" },
     bio: { type: String, default: "" },
@@ -15,13 +19,13 @@ const userSchema = new mongoose.Schema(
     neighborhood: { type: String, default: "" },
     isOnline: { type: Boolean, default: false },
     joinedDate: { type: String, default: () => new Date().getFullYear().toString() },
-    // Worker fields
+    // Worker
     skills: [String],
     hourlyRate: { type: String, default: "" },
     jobsCompleted: { type: Number, default: 0 },
     rating: { type: Number, default: 0 },
     reviewCount: { type: Number, default: 0 },
-    // Business fields
+    // Business
     businessName: { type: String, default: "" },
     category: { type: String, default: "" },
     connections: { type: Number, default: 0 },

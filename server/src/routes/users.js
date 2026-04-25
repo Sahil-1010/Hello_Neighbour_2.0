@@ -1,6 +1,6 @@
 const router = require("express").Router();
 const User = require("../models/User");
-const auth = require("../middleware/auth");
+const { auth } = require("../middleware/auth");
 
 // GET /api/users?neighborhood=X&role=worker
 router.get("/", auth, async (req, res) => {
@@ -27,6 +27,22 @@ router.get("/:id", auth, async (req, res) => {
   }
 });
 
+// PUT /api/users/me/neighborhood  (must be before /:id)
+router.put("/me/neighborhood", auth, async (req, res) => {
+  try {
+    const { neighborhood, location } = req.body;
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { neighborhood, location },
+      { new: true }
+    ).select("-__v");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json({ ...user.toObject(), id: user._id.toString() });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // PUT /api/users/:id  (own profile only)
 router.put("/:id", auth, async (req, res) => {
   try {
@@ -39,22 +55,7 @@ router.put("/:id", auth, async (req, res) => {
     allowed.forEach((k) => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
 
     const user = await User.findByIdAndUpdate(req.params.id, updates, { new: true }).select("-__v");
-    res.json(user);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// PUT /api/users/neighborhood  (update own neighborhood after onboarding)
-router.put("/me/neighborhood", auth, async (req, res) => {
-  try {
-    const { neighborhood, location } = req.body;
-    const user = await User.findByIdAndUpdate(
-      req.user.id,
-      { neighborhood, location },
-      { new: true }
-    ).select("-__v");
-    res.json(user);
+    res.json({ ...user.toObject(), id: user._id.toString() });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
