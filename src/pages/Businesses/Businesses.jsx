@@ -3,26 +3,42 @@ import { Search, Star, MapPin, Phone, MessageCircle, Plus, Clock } from "lucide-
 import { Link } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
 import { businessCategories } from "../../data/mockData";
-import Modal from "../../components/common/Modal";
 
 // ── Business Card ─────────────────────────────────────────────────────────────
 function BusinessCard({ biz }) {
+  // Find the first offer that is explicitly active (new object format)
+  // or treat a plain string as active (legacy fallback)
+  const activeOffer = biz.offers?.find((o) =>
+    typeof o === "object" ? o.isActive : true
+  );
+  const offerTitle = activeOffer
+    ? (typeof activeOffer === "object" ? activeOffer.title : activeOffer)
+    : null;
+
   return (
     <div className="card overflow-hidden hover:shadow-card-hover transition-all duration-200 flex flex-col">
       {/* Image */}
       <div className="relative h-36 flex-shrink-0">
-        <img src={biz.image} alt={biz.name} className="w-full h-full object-cover" />
+        {biz.image ? (
+          <img src={biz.image} alt={biz.name} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center">
+            <span className="text-5xl">{biz.categoryIcon || "🏪"}</span>
+          </div>
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
         <div className="absolute top-2 left-2">
           <span className={`badge ${biz.isOpen ? "bg-emerald-500/90 text-white" : "bg-gray-600/80 text-white"} backdrop-blur-sm text-[10px]`}>
             {biz.isOpen ? "● Open" : "● Closed"}
           </span>
         </div>
-        <div className="absolute top-2 right-2">
-          <span className="badge bg-black/40 text-white backdrop-blur-sm text-[10px] flex items-center gap-1">
-            <MapPin size={9} />{biz.distance}
-          </span>
-        </div>
+        {biz.distance && (
+          <div className="absolute top-2 right-2">
+            <span className="badge bg-black/40 text-white backdrop-blur-sm text-[10px] flex items-center gap-1">
+              <MapPin size={9} />{biz.distance}
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="p-4 flex flex-col flex-1">
@@ -32,16 +48,18 @@ function BusinessCard({ biz }) {
             <h3 className="font-semibold text-gray-900 dark:text-white text-sm leading-tight truncate">{biz.name}</h3>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{biz.categoryIcon} {biz.category}</p>
           </div>
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <Star size={12} className="text-amber-400 fill-amber-400" />
-            <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">{biz.rating}</span>
-            <span className="text-xs text-gray-400">({biz.reviewCount})</span>
-          </div>
+          {biz.rating > 0 && (
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <Star size={12} className="text-amber-400 fill-amber-400" />
+              <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">{biz.rating}</span>
+              <span className="text-xs text-gray-400">({biz.reviewCount})</span>
+            </div>
+          )}
         </div>
 
         {/* Description */}
         <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 leading-relaxed mb-3 flex-1">
-          {biz.description}
+          {biz.description || "Local business in your neighborhood."}
         </p>
 
         {/* Hours */}
@@ -52,11 +70,11 @@ function BusinessCard({ biz }) {
           </div>
         )}
 
-        {/* Active offer */}
-        {biz.offers?.[0] && (
+        {/* Active offer — only shown when owner has enabled it */}
+        {offerTitle && (
           <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/50 rounded-xl px-3 py-2 mb-3">
             <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-0.5">Active offer</p>
-            <p className="text-xs text-emerald-700 dark:text-emerald-300 line-clamp-1">{biz.offers[0]}</p>
+            <p className="text-xs text-emerald-700 dark:text-emerald-300 line-clamp-1">{offerTitle}</p>
           </div>
         )}
 
@@ -94,62 +112,11 @@ function CategorySummaryCard({ cat, count, isActive, onClick }) {
   );
 }
 
-// ── Create Business Modal (for Business Owners) ──────────────────────────────
-function CreateBusinessModal({ isOpen, onClose }) {
-  const [form, setForm] = useState({ name: "", category: "", description: "", phone: "", hours: "" });
-  const { addToast } = useApp();
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    addToast({ type: "success", message: "Business profile created! 🎉" });
-    onClose();
-  };
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Create Business Profile">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Business name *</label>
-          <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g., Maple Street Bakery" className="input" required />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Category *</label>
-          <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="input bg-white dark:bg-gray-700" required>
-            <option value="">Select category</option>
-            {businessCategories.map((c) => (
-              <option key={c.name} value={c.name}>{c.icon} {c.name}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Description *</label>
-          <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Describe your business..." rows={3} className="input resize-none" required />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Phone</label>
-            <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="555-0000" className="input" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Hours</label>
-            <input type="text" value={form.hours} onChange={(e) => setForm({ ...form, hours: e.target.value })} placeholder="Mon–Sat: 9–6" className="input" />
-          </div>
-        </div>
-        <div className="flex gap-3 pt-2">
-          <button type="button" onClick={onClose} className="btn-secondary flex-1 py-2.5">Cancel</button>
-          <button type="submit" disabled={!form.name || !form.category} className="btn-primary flex-1 py-2.5 disabled:opacity-50">Create Profile</button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function Businesses() {
   const { filteredBusinesses, currentNeighborhood, user } = useApp();
   const [activeCategory, setActiveCategory] = useState("All");
   const [search, setSearch] = useState("");
-  const [showCreate, setShowCreate] = useState(false);
 
   const categoryCounts = businessCategories.reduce((acc, cat) => {
     acc[cat.name] = filteredBusinesses.filter((b) => b.category === cat.name).length;
@@ -186,10 +153,10 @@ export default function Businesses() {
           </p>
         </div>
         {user?.role === "business" && (
-          <button onClick={() => setShowCreate(true)} className="btn-primary flex items-center gap-2 flex-shrink-0">
+          <Link to="/business" className="btn-primary flex items-center gap-2 flex-shrink-0">
             <Plus size={16} />
-            <span className="hidden sm:inline">Add Business</span>
-          </button>
+            <span className="hidden sm:inline">Manage Business</span>
+          </Link>
         )}
       </div>
 
@@ -293,8 +260,6 @@ export default function Businesses() {
           </Link>
         </div>
       )}
-
-      <CreateBusinessModal isOpen={showCreate} onClose={() => setShowCreate(false)} />
     </div>
   );
 }

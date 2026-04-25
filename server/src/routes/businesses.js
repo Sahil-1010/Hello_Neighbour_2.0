@@ -3,18 +3,36 @@ const Business = require("../models/Business");
 const User = require("../models/User");
 const { auth, requireRole } = require("../middleware/auth");
 
-// GET /api/businesses?neighborhood=X&category=X
+// GET /api/businesses?neighborhood=X&category=X&lat=X&lng=X
 router.get("/", auth, async (req, res) => {
   try {
-    const { neighborhood, category } = req.query;
+    const { neighborhood, category, lat, lng } = req.query;
     const filter = {};
-    if (neighborhood) filter.neighborhood = neighborhood;
+
+    const parsedLat = parseFloat(lat);
+    const parsedLng = parseFloat(lng);
+    const hasGeo =
+      !isNaN(parsedLat) && !isNaN(parsedLng) &&
+      (parsedLat !== 0 || parsedLng !== 0);
+
+    if (hasGeo) {
+      filter.geoLocation = {
+        $near: {
+          $geometry: { type: "Point", coordinates: [parsedLng, parsedLat] },
+          $maxDistance: 5000,
+        },
+      };
+    } else if (neighborhood) {
+      filter.neighborhood = neighborhood;
+    }
+
     if (category && category !== "All") filter.category = category;
 
-    const businesses = await Business.find(filter)
-      .populate("owner", "name avatar")
-      .sort({ createdAt: -1 })
-      .limit(100);
+    // $near returns results pre-sorted by distance; skip manual sort when geo is active
+    const query = Business.find(filter).populate("owner", "name avatar").limit(100);
+    if (!hasGeo) query.sort({ createdAt: -1 });
+
+    const businesses = await query;
     res.json(businesses.map((b) => ({ ...b.toObject(), id: b._id.toString() })));
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -57,9 +75,9 @@ router.post("/", auth, requireRole("business"), async (req, res) => {
       ...req.body,
       owner:        req.user.id,
       neighborhood: user.neighborhood,
+      offers:       [],   // always start empty; offers added via /:id/offers
     };
 
-    // Attach owner's geolocation so the business can be found via radius queries
     if (hasValidGeo(user.geoLocation)) {
       businessData.geoLocation = user.geoLocation;
     }
@@ -79,7 +97,7 @@ router.put("/:id", auth, requireRole("business"), async (req, res) => {
     if (business.owner.toString() !== req.user.id)
       return res.status(403).json({ message: "Not authorized" });
 
-    const allowed = ["name", "description", "image", "hours", "phone", "isOpen", "offers", "category", "categoryIcon"];
+    const allowed = ["name", "description", "image", "hours", "phone", "isOpen", "category", "categoryIcon"];
     const updates = {};
     allowed.forEach((k) => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
 
@@ -99,6 +117,65 @@ router.delete("/:id", auth, requireRole("business"), async (req, res) => {
       return res.status(403).json({ message: "Not authorized" });
     await business.deleteOne();
     res.json({ message: "Business deleted" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── Offer sub-routes ──────────────────────────────────────────────────────────
+
+// POST /api/businesses/:id/offers — add an offer
+router.post("/:id/offers", auth, requireRole("business"), async (req, res) => {
+  try {
+    const business = await Business.findById(req.params.id);
+    if (!business) return res.status(404).json({ message: "Business not found" });
+    if (business.owner.toString() !== req.user.id)
+      return res.status(403).json({ message: "Not authorized" });
+
+    const { title, description, discount, validUntil } = req.body;
+    if (!title) return res.status(400).json({ message: "Offer title is required" });
+
+    business.offers.push({ title, description, discount, validUntil, isActive: true });
+    await business.save();
+
+    res.status(201).json({ ...business.toObject(), id: business._id.toString() });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// PUT /api/businesses/:id/offers/:offerId — toggle or update isActive
+router.put("/:id/offers/:offerId", auth, requireRole("business"), async (req, res) => {
+  try {
+    const business = await Business.findById(req.params.id);
+    if (!business) return res.status(404).json({ message: "Business not found" });
+    if (business.owner.toString() !== req.user.id)
+      return res.status(403).json({ message: "Not authorized" });
+
+    const offer = business.offers.id(req.params.offerId);
+    if (!offer) return res.status(404).json({ message: "Offer not found" });
+
+    offer.isActive = req.body.isActive !== undefined ? req.body.isActive : !offer.isActive;
+    await business.save();
+
+    res.json({ ...business.toObject(), id: business._id.toString() });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// DELETE /api/businesses/:id/offers/:offerId
+router.delete("/:id/offers/:offerId", auth, requireRole("business"), async (req, res) => {
+  try {
+    const business = await Business.findById(req.params.id);
+    if (!business) return res.status(404).json({ message: "Business not found" });
+    if (business.owner.toString() !== req.user.id)
+      return res.status(403).json({ message: "Not authorized" });
+
+    business.offers.pull(req.params.offerId);
+    await business.save();
+
+    res.json({ ...business.toObject(), id: business._id.toString() });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

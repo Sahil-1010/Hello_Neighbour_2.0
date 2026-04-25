@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   Building2, TrendingUp, Eye, MessageCircle, Star, Plus, Edit3, Tag,
-  Briefcase, ToggleLeft, ToggleRight, ChevronRight, BarChart3, Users, Clock, Phone,
+  Briefcase, ToggleLeft, ToggleRight, ChevronRight, BarChart3, Users, Clock, Phone, Trash2,
 } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 import { api } from "../../services/api";
@@ -47,24 +47,69 @@ function StatCard({ icon: Icon, label, value, change, color }) {
   );
 }
 
-function OfferCard({ offer }) {
-  const [active, setActive] = useState(true);
+function OfferCard({ offer, businessId, onUpdate, onDelete }) {
+  const [saving, setSaving] = useState(false);
+
+  const handleToggle = async () => {
+    setSaving(true);
+    try {
+      const updated = await api.put(`/businesses/${businessId}/offers/${offer._id}`, {
+        isActive: !offer.isActive,
+      });
+      onUpdate(updated);
+    } catch (_) {
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm("Delete this offer?")) return;
+    try {
+      const updated = await api.delete(`/businesses/${businessId}/offers/${offer._id}`);
+      onDelete(updated);
+    } catch (_) {}
+  };
+
   return (
-    <div className={`card p-4 transition-all ${!active ? "opacity-60" : ""}`}>
+    <div className={`card p-4 transition-all ${!offer.isActive ? "opacity-60" : ""}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-lg">🎉</span>
-            <p className="font-semibold text-gray-900 dark:text-white text-sm">{offer}</p>
+            <p className="font-semibold text-gray-900 dark:text-white text-sm">{offer.title}</p>
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Posted 3 days ago · 45 views</p>
+          {offer.discount && (
+            <span className="inline-block text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full mb-1">
+              {offer.discount}
+            </span>
+          )}
+          {offer.description && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 leading-snug">{offer.description}</p>
+          )}
+          {offer.validUntil && (
+            <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">
+              Valid until {new Date(offer.validUntil).toLocaleDateString()}
+            </p>
+          )}
+          <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
+            {offer.isActive ? "Visible to neighbors" : "Hidden from public"}
+          </p>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <button onClick={() => setActive(!active)} className={`transition-colors ${active ? "text-emerald-500" : "text-gray-400"}`}>
-            {active ? <ToggleRight size={28} /> : <ToggleLeft size={28} />}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button
+            onClick={handleToggle}
+            disabled={saving}
+            className={`transition-colors disabled:opacity-50 ${offer.isActive ? "text-emerald-500" : "text-gray-400"}`}
+            title={offer.isActive ? "Disable offer" : "Enable offer"}
+          >
+            {offer.isActive ? <ToggleRight size={28} /> : <ToggleLeft size={28} />}
           </button>
-          <button className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-            <Edit3 size={15} />
+          <button
+            onClick={handleDelete}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+          >
+            <Trash2 size={14} />
           </button>
         </div>
       </div>
@@ -176,15 +221,37 @@ function CreateBusinessModal({ isOpen, onClose, onCreated }) {
 
 // ── Create Offer Modal ────────────────────────────────────────────────────────
 
-function CreateOfferModal({ isOpen, onClose }) {
+function CreateOfferModal({ isOpen, onClose, businessId, onCreated }) {
+  const { addToast } = useApp();
   const [form, setForm] = useState({ title: "", description: "", discount: "", validUntil: "" });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.title) { setError("Offer title is required."); return; }
+    setError("");
+    setLoading(true);
+    try {
+      const updated = await api.post(`/businesses/${businessId}/offers`, form);
+      onCreated(updated);
+      addToast({ type: "success", message: "Offer published! 📢" });
+      setForm({ title: "", description: "", discount: "", validUntil: "" });
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Create Offer / Ad">
-      <div className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Offer title *</label>
           <input type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
-            placeholder="e.g., 30% off all pastries this Friday" className="input" />
+            placeholder="e.g., 30% off all pastries this Friday" className="input" required />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Description</label>
@@ -203,11 +270,25 @@ function CreateOfferModal({ isOpen, onClose }) {
               className="input" />
           </div>
         </div>
+
+        {error && (
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
+            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          </div>
+        )}
+
         <div className="flex gap-3 pt-2">
-          <button onClick={onClose} className="btn-secondary flex-1 py-2.5">Cancel</button>
-          <button onClick={onClose} disabled={!form.title} className="btn-primary flex-1 py-2.5 disabled:opacity-50">Publish Offer</button>
+          <button type="button" onClick={onClose} className="btn-secondary flex-1 py-2.5">Cancel</button>
+          <button type="submit" disabled={loading || !form.title} className="btn-primary flex-1 py-2.5 disabled:opacity-50">
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Publishing…
+              </span>
+            ) : "Publish Offer"}
+          </button>
         </div>
-      </div>
+      </form>
     </Modal>
   );
 }
@@ -247,7 +328,7 @@ function NoBusiness({ onCreateClick }) {
 // ── Main Dashboard ────────────────────────────────────────────────────────────
 
 export default function BusinessDashboard() {
-  const { user, jobs, addToast } = useApp();
+  const { user, jobs, addToast, addBusiness, updateBusiness } = useApp();
   const [myBusiness, setMyBusiness] = useState(null);
   const [businessLoading, setBusinessLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -262,6 +343,13 @@ export default function BusinessDashboard() {
 
   const handleBusinessCreated = (newBusiness) => {
     setMyBusiness(newBusiness);
+    addBusiness(newBusiness); // sync with public business list
+  };
+
+  // Called when an offer is added or toggled — the server returns the full updated business
+  const handleBusinessUpdated = (updated) => {
+    setMyBusiness(updated);
+    updateBusiness(updated); // sync with public business list
   };
 
   const businessJobs = jobs.filter((j) => j.status !== "completed").slice(0, 3);
@@ -303,6 +391,9 @@ export default function BusinessDashboard() {
       </>
     );
   }
+
+  const activeOffers = myBusiness.offers?.filter((o) => o.isActive) || [];
+  const allOffers = myBusiness.offers || [];
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
@@ -391,24 +482,49 @@ export default function BusinessDashboard() {
         </div>
       </div>
 
-      {/* Active Offers */}
-      {myBusiness.offers?.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-3">
+      {/* Manage Offers */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <div>
             <h2 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <Tag size={18} className="text-emerald-500" />
-              Active Offers & Ads
+              Manage Offers & Ads
             </h2>
-            <button onClick={() => setShowOfferModal(true)}
-              className="text-sm text-emerald-600 dark:text-emerald-400 font-medium hover:text-emerald-700 dark:hover:text-emerald-300 flex items-center gap-1">
-              <Plus size={14} /> Add offer
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              {activeOffers.length} of {allOffers.length} offers visible to neighbors
+            </p>
+          </div>
+          <button
+            onClick={() => setShowOfferModal(true)}
+            className="text-sm text-emerald-600 dark:text-emerald-400 font-medium hover:text-emerald-700 dark:hover:text-emerald-300 flex items-center gap-1"
+          >
+            <Plus size={14} /> Add offer
+          </button>
+        </div>
+
+        {allOffers.length === 0 ? (
+          <div className="card p-8 text-center border-dashed border-2 border-gray-200 dark:border-gray-700">
+            <p className="text-3xl mb-2">📢</p>
+            <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">No offers yet</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Create an offer to attract more customers</p>
+            <button onClick={() => setShowOfferModal(true)} className="btn-primary py-2 px-6 text-sm">
+              Create First Offer
             </button>
           </div>
+        ) : (
           <div className="space-y-3">
-            {myBusiness.offers.map((offer, i) => <OfferCard key={i} offer={offer} />)}
+            {allOffers.map((offer) => (
+              <OfferCard
+                key={offer._id}
+                offer={offer}
+                businessId={myBusiness._id || myBusiness.id}
+                onUpdate={handleBusinessUpdated}
+                onDelete={handleBusinessUpdated}
+              />
+            ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Job Requests */}
       {businessJobs.length > 0 && (
@@ -459,7 +575,12 @@ export default function BusinessDashboard() {
         </div>
       </div>
 
-      <CreateOfferModal isOpen={showOfferModal} onClose={() => setShowOfferModal(false)} />
+      <CreateOfferModal
+        isOpen={showOfferModal}
+        onClose={() => setShowOfferModal(false)}
+        businessId={myBusiness._id || myBusiness.id}
+        onCreated={handleBusinessUpdated}
+      />
       <CreateBusinessModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}

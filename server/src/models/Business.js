@@ -1,5 +1,16 @@
 const mongoose = require("mongoose");
 
+const offerSchema = new mongoose.Schema(
+  {
+    title:       { type: String, required: true },
+    description: { type: String, default: "" },
+    discount:    { type: String, default: "" },
+    validUntil:  { type: Date },
+    isActive:    { type: Boolean, default: true },
+  },
+  { timestamps: true }
+);
+
 const businessSchema = new mongoose.Schema(
   {
     name:         { type: String, required: true },
@@ -22,7 +33,7 @@ const businessSchema = new mongoose.Schema(
     hours:       { type: String, default: "" },
     phone:       { type: String, default: "" },
     distance:    { type: String, default: "" },
-    offers:      [String],
+    offers:      [offerSchema],
   },
   { timestamps: true }
 );

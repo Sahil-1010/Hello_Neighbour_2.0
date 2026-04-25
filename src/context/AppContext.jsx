@@ -71,8 +71,8 @@ export function AppProvider({ children }) {
 
     api.get(`/posts?neighborhood=${hood}`).then(setPosts).catch(() => {});
     api.get(`/jobs?neighborhood=${hood}`).then(setJobs).catch(() => {});
-    api.get(`/businesses?neighborhood=${hood}`).then(setBusinesses).catch(() => {});
-    // Nearby users: use geospatial radius when coordinates are available
+    // Businesses + nearby users both use geospatial radius when coordinates are available
+    api.get(`/businesses?neighborhood=${hood}${geoParam}`).then(setBusinesses).catch(() => {});
     api.get(`/users?neighborhood=${hood}${geoParam}`).then(setNearbyUsers).catch(() => {});
     api.get("/notifications").then(setNotifications).catch(() => {});
     api.get("/messages/conversations").then(setConversations).catch(() => {});
@@ -145,6 +145,15 @@ export function AppProvider({ children }) {
 
   const switchNeighborhood = (name) => {
     addToast({ type: "info", message: `Switched to ${name}` });
+  };
+
+  // ── Business actions ──────────────────────────────────────────────────────
+  const addBusiness = (business) => {
+    setBusinesses((prev) => [business, ...prev]);
+  };
+
+  const updateBusiness = (updated) => {
+    setBusinesses((prev) => prev.map((b) => b.id === updated.id ? updated : b));
   };
 
   // ── Post actions ──────────────────────────────────────────────────────────
@@ -270,6 +279,8 @@ export function AppProvider({ children }) {
         filteredPosts, filteredJobs, filteredBusinesses,
         // counts
         unreadNotifCount, unreadMsgCount,
+        // business actions
+        addBusiness, updateBusiness,
         // post actions
         addPost, toggleLike, addComment,
         // job actions
