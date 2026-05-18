@@ -6,3 +6,5 @@ dist/
 *.log
 .claude/
 *.exe
+server/.env
+REFERENCE.md

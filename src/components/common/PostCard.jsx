@@ -1,28 +1,54 @@
 import { useState } from "react";
-import { Heart, MessageCircle, Share2, MapPin, Send, ChevronDown, ChevronUp } from "lucide-react";
+import { Heart, ThumbsDown, MessageCircle, Share2, MapPin, Send, Flag, MoreHorizontal, X, AlertTriangle, Edit3, Trash2 } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 import { Link } from "react-router-dom";
 
+const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='20' fill='%23e2e8f0'/%3E%3Ccircle cx='20' cy='16' r='7' fill='%2394a3b8'/%3E%3Cellipse cx='20' cy='34' rx='12' ry='9' fill='%2394a3b8'/%3E%3C/svg%3E";
+
 const roleColors = {
-  normal: "bg-blue-100 text-blue-700",
-  worker: "bg-amber-100 text-amber-700",
-  business: "bg-purple-100 text-purple-700",
+  normal: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+  worker: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  business: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
 };
 
 const postTypeBadge = {
-  warning: { label: "⚠️ Warning", className: "bg-red-100 text-red-700" },
-  help: { label: "🆘 Help Needed", className: "bg-blue-100 text-blue-700" },
-  offer: { label: "🎉 Offer", className: "bg-green-100 text-green-700" },
+  warning: { label: "Warning",     className: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300" },
+  help:    { label: "Help Needed", className: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" },
+  offer:   { label: "Offer",       className: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300" },
   general: null,
 };
 
-const reactionEmojis = ["❤️", "👍", "😍", "🙌", "😂", "😮"];
+const REPORT_REASONS = ["Spam", "Harassment", "Misinformation", "Inappropriate content", "Scam", "Other"];
 
 export default function PostCard({ post }) {
-  const { toggleLike, addComment, user } = useApp();
+  const { toggleLike, toggleDislike, addComment, reportContent, editPost, deletePost, user } = useApp();
   const [showComments, setShowComments] = useState(false);
-  const [showReactions, setShowReactions] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [showReport, setShowReport] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [editContent, setEditContent] = useState(post.content);
+  const [editLoading, setEditLoading] = useState(false);
+  const [reportReason, setReportReason] = useState("");
   const [commentText, setCommentText] = useState("");
+
+  const isOwner = user?.id === post.author?.id;
+
+  const handleEdit = async (e) => {
+    e.preventDefault();
+    if (!editContent.trim()) return;
+    setEditLoading(true);
+    try {
+      await editPost(post.id, editContent.trim());
+      setShowEdit(false);
+    } catch {}
+    setEditLoading(false);
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm("Delete this post?")) return;
+    try { await deletePost(post.id); } catch {}
+    setShowMenu(false);
+  };
 
   const handleComment = (e) => {
     e.preventDefault();
@@ -31,13 +57,22 @@ export default function PostCard({ post }) {
     setCommentText("");
   };
 
+  const handleReport = async () => {
+    if (!reportReason) return;
+    try {
+      await reportContent({ targetId: post.id, type: "post", reason: reportReason });
+    } catch {}
+    setShowReport(false);
+    setShowMenu(false);
+    setReportReason("");
+  };
+
   const typeBadge = postTypeBadge[post.type];
-  const totalReactions = Object.values(post.reactions || {}).reduce((a, b) => a + b, 0);
 
   return (
     <article
       className={`card overflow-hidden transition-shadow hover:shadow-card-hover ${
-        post.type === "warning" ? "border-red-200 bg-red-50/30" : ""
+        post.type === "warning" ? "border-red-200 dark:border-red-800 bg-red-50/30 dark:bg-red-900/10" : ""
       }`}
     >
       {/* Header */}
@@ -45,24 +80,29 @@ export default function PostCard({ post }) {
         <div className="flex items-start justify-between">
           <Link to={`/profile/${post.author.id}`} className="flex items-center gap-3 group">
             <div className="relative">
-              <img
-                src={post.author.avatar}
-                alt={post.author.name}
-                className="w-11 h-11 rounded-full object-cover ring-2 ring-white shadow-sm"
-              />
-              <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-white" />
+              <img src={post.author.avatar || DEFAULT_AVATAR} alt={post.author.name} onError={(e) => { e.currentTarget.src = DEFAULT_AVATAR; }} className="w-11 h-11 rounded-full object-cover ring-2 ring-white dark:ring-gray-700 shadow-sm" />
+              <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-white dark:border-gray-800" />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-semibold text-gray-900 text-sm group-hover:text-emerald-600 transition-colors">
+                <span className="font-semibold text-gray-900 dark:text-white text-sm group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                   {post.author.businessName || post.author.name}
                 </span>
                 <span className={`badge ${roleColors[post.author.role]} capitalize text-[10px]`}>
                   {post.author.role}
                 </span>
                 {typeBadge && (
-                  <span className={`badge ${typeBadge.className} text-[10px]`}>
-                    {typeBadge.label}
+                  <span className={`badge ${typeBadge.className} text-[10px]`}>{typeBadge.label}</span>
+                )}
+                {post.isEdited && (
+                  <span className="badge bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400 text-[10px]">
+                    edited
+                  </span>
+                )}
+                {post.reportCount > 0 && (
+                  <span className="badge bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400 text-[10px] flex items-center gap-0.5">
+                    <AlertTriangle size={9} />
+                    Reported {post.reportCount} {post.reportCount === 1 ? "time" : "times"}
                   </span>
                 )}
               </div>
@@ -70,146 +110,217 @@ export default function PostCard({ post }) {
                 {post.author.location && (
                   <>
                     <MapPin size={11} className="text-gray-400" />
-                    <span className="text-xs text-gray-400">{post.author.location}</span>
-                    <span className="text-gray-300">·</span>
+                    <span className="text-xs text-gray-400 dark:text-gray-500">{post.author.location}</span>
+                    <span className="text-gray-300 dark:text-gray-600">·</span>
                   </>
                 )}
-                <span className="text-xs text-gray-400">{post.timestamp}</span>
+                <span className="text-xs text-gray-400 dark:text-gray-500">{post.timestamp}</span>
               </div>
             </div>
           </Link>
         </div>
 
         {/* Content */}
-        <p className="mt-3 text-gray-700 text-sm leading-relaxed">{post.content}</p>
+        <p className="mt-3 text-gray-700 dark:text-gray-300 text-sm leading-relaxed">{post.content}</p>
       </div>
 
       {/* Image */}
       {post.image && (
         <div className="mt-3 mx-4">
-          <img
-            src={post.image}
-            alt="Post"
-            className="w-full rounded-xl object-cover max-h-72"
-          />
+          <img src={post.image} alt="Post" className="w-full rounded-xl object-cover max-h-72" />
         </div>
       )}
 
-      {/* Reaction summary */}
-      {totalReactions > 0 && (
-        <div className="px-4 pt-3 pb-0 flex items-center justify-between text-xs text-gray-500">
+      {/* Like/comment summary */}
+      {(post.likes > 0 || (post.commentList?.length || post.comments) > 0) && (
+        <div className="px-4 pt-3 pb-0 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
           <div className="flex items-center gap-1">
-            <div className="flex -space-x-0.5">
-              {Object.keys(post.reactions)
-                .slice(0, 3)
-                .map((emoji) => (
-                  <span key={emoji} className="text-sm">
-                    {emoji}
-                  </span>
-                ))}
-            </div>
-            <span>{totalReactions} reactions</span>
+            {post.likes > 0 && <span>{post.likes} {post.likes === 1 ? "like" : "likes"}</span>}
+            {post.dislikes > 0 && <span className="ml-2">{post.dislikes} {post.dislikes === 1 ? "dislike" : "dislikes"}</span>}
           </div>
-          <button
-            className="hover:text-emerald-600 transition-colors"
-            onClick={() => setShowComments(!showComments)}
-          >
+          <button className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors" onClick={() => setShowComments(!showComments)}>
             {post.commentList?.length || post.comments} comments
           </button>
         </div>
       )}
 
-      {/* Divider */}
-      <div className="mx-4 my-2 border-t border-gray-100" />
+      <div className="mx-4 my-2 border-t border-gray-100 dark:border-gray-700" />
 
-      {/* Action buttons */}
+      {/* Actions */}
       <div className="px-2 pb-2 flex items-center gap-1">
-        {/* Like */}
         <button
           onClick={() => toggleLike(post.id)}
           className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
             post.isLiked
-              ? "text-red-500 bg-red-50 hover:bg-red-100"
-              : "text-gray-500 hover:bg-gray-100"
+              ? "text-red-500 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30"
+              : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
           }`}
         >
           <Heart size={18} fill={post.isLiked ? "currentColor" : "none"} />
           <span>{post.likes}</span>
         </button>
 
-        {/* Comment */}
+        <button
+          onClick={() => toggleDislike(post.id)}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+            post.isDisliked
+              ? "text-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30"
+              : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+          }`}
+        >
+          <ThumbsDown size={18} fill={post.isDisliked ? "currentColor" : "none"} />
+        </button>
+
         <button
           onClick={() => setShowComments(!showComments)}
-          className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-medium text-gray-500 hover:bg-gray-100 transition-colors"
+          className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
         >
           <MessageCircle size={18} />
           <span>{post.commentList?.length || post.comments}</span>
         </button>
 
-        {/* React */}
+        <button className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+          <Share2 size={18} />
+        </button>
+
+        {/* Post menu (report) */}
         <div className="relative">
           <button
-            onClick={() => setShowReactions(!showReactions)}
-            className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-gray-500 hover:bg-gray-100 transition-colors"
+            onClick={() => setShowMenu(!showMenu)}
+            className="flex items-center justify-center p-2 rounded-xl text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           >
-            😊
-            <span className="text-xs">React</span>
+            <MoreHorizontal size={18} />
           </button>
-          {showReactions && (
+          {showMenu && (
             <>
-              <div className="fixed inset-0 z-10" onClick={() => setShowReactions(false)} />
-              <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-white rounded-2xl shadow-lg border border-gray-100 p-2 flex gap-1 z-20">
-                {reactionEmojis.map((emoji) => (
-                  <button
-                    key={emoji}
-                    className="text-xl p-1.5 rounded-xl hover:bg-gray-100 transition-all hover:scale-125"
-                    onClick={() => setShowReactions(false)}
-                  >
-                    {emoji}
-                  </button>
-                ))}
+              <div className="fixed inset-0 z-[9998]" onClick={() => setShowMenu(false)} />
+              <div className="absolute right-0 bottom-full mb-2 w-44 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 py-1 z-[9999]">
+                {isOwner && (
+                  <>
+                    <button
+                      onClick={() => { setEditContent(post.content); setShowEdit(true); setShowMenu(false); }}
+                      disabled={post.editCount >= 3}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-40"
+                    >
+                      <Edit3 size={14} /> {post.editCount >= 3 ? "Edit (limit reached)" : `Edit post (${3 - post.editCount} left)`}
+                    </button>
+                    <button
+                      onClick={handleDelete}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    >
+                      <Trash2 size={14} /> Delete post
+                    </button>
+                    <div className="mx-2 my-1 border-t border-gray-100 dark:border-gray-700" />
+                  </>
+                )}
+                <button
+                  onClick={() => { setShowReport(true); setShowMenu(false); }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                >
+                  <Flag size={14} /> Report post
+                </button>
               </div>
             </>
           )}
         </div>
-
-        {/* Share */}
-        <button className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-gray-500 hover:bg-gray-100 transition-colors">
-          <Share2 size={18} />
-        </button>
       </div>
 
-      {/* Comments section */}
+      {/* Edit modal */}
+      {showEdit && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowEdit(false)} />
+          <div className="relative w-full max-w-sm bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Edit Post</h3>
+              <button onClick={() => setShowEdit(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleEdit}>
+              <textarea
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                rows={4}
+                className="w-full text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 text-gray-900 dark:text-gray-100 resize-none mb-3"
+                maxLength={500}
+              />
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
+                {3 - (post.editCount || 0)} edit{3 - (post.editCount || 0) !== 1 ? "s" : ""} remaining
+              </p>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowEdit(false)} className="flex-1 btn-secondary py-2.5 text-sm">Cancel</button>
+                <button type="submit" disabled={editLoading || !editContent.trim()} className="flex-1 btn-primary py-2.5 text-sm disabled:opacity-50">
+                  {editLoading ? "Saving…" : "Save"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Report modal */}
+      {showReport && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowReport(false)} />
+          <div className="relative w-full max-w-sm bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Report Post</h3>
+              <button onClick={() => setShowReport(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Select a reason for reporting this post:</p>
+            <div className="space-y-2 mb-4">
+              {REPORT_REASONS.map((r) => (
+                <label key={r} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="report-reason"
+                    value={r}
+                    checked={reportReason === r}
+                    onChange={() => setReportReason(r)}
+                    className="accent-emerald-500"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">{r}</span>
+                </label>
+              ))}
+            </div>
+            <button
+              onClick={handleReport}
+              disabled={!reportReason}
+              className="btn-primary w-full py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Submit Report
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Comments */}
       {showComments && (
-        <div className="px-4 pb-4 border-t border-gray-100 pt-3 space-y-3">
+        <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700 pt-3 space-y-3">
           {(post.commentList || []).map((comment) => (
             <div key={comment.id} className="flex items-start gap-2.5">
-              <img src={comment.avatar} alt={comment.author} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
-              <div className="flex-1 bg-gray-50 rounded-xl px-3 py-2">
+              <img src={comment.avatar || DEFAULT_AVATAR} alt={comment.author} onError={(e) => { e.currentTarget.src = DEFAULT_AVATAR; }} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+              <div className="flex-1 bg-gray-50 dark:bg-gray-700 rounded-xl px-3 py-2">
                 <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-xs font-semibold text-gray-900">{comment.author}</span>
-                  <span className="text-[10px] text-gray-400">{comment.time}</span>
+                  <span className="text-xs font-semibold text-gray-900 dark:text-white">{comment.author}</span>
+                  <span className="text-[10px] text-gray-400 dark:text-gray-500">{comment.time}</span>
                 </div>
-                <p className="text-xs text-gray-700">{comment.text}</p>
+                <p className="text-xs text-gray-700 dark:text-gray-300">{comment.text}</p>
               </div>
             </div>
           ))}
-
-          {/* Add comment */}
           <form onSubmit={handleComment} className="flex items-center gap-2.5 mt-2">
-            <img src={user?.avatar} alt={user?.name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+            <img src={user?.avatar || DEFAULT_AVATAR} alt={user?.name} onError={(e) => { e.currentTarget.src = DEFAULT_AVATAR; }} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
             <div className="flex-1 relative">
               <input
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
                 placeholder="Add a comment..."
-                className="w-full pl-3 pr-10 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                className="w-full pl-3 pr-10 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 text-gray-900 dark:text-gray-100 placeholder-gray-400"
               />
-              <button
-                type="submit"
-                disabled={!commentText.trim()}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-emerald-500 disabled:text-gray-300 transition-colors"
-              >
+              <button type="submit" disabled={!commentText.trim()} className="absolute right-2 top-1/2 -translate-y-1/2 text-emerald-500 disabled:text-gray-300 dark:disabled:text-gray-600 transition-colors">
                 <Send size={16} />
               </button>
             </div>

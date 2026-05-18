@@ -11,44 +11,46 @@
   font-family: "Inter", system-ui, sans-serif;
 }
 
-::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-::-webkit-scrollbar-track {
-  background: #f1f5f9;
-}
-::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
+@layer base {
+  body {
+    @apply bg-gray-50 dark:bg-gray-900 transition-colors duration-200;
+  }
 }
 
-html {
-  scroll-behavior: smooth;
-}
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+.dark ::-webkit-scrollbar-track { background: #1f2937; }
+.dark ::-webkit-scrollbar-thumb { background: #4b5563; }
 
-.hide-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-.hide-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
+html { scroll-behavior: smooth; }
+
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
 @layer components {
   .btn-primary {
     @apply bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-2.5 px-5 rounded-xl transition-all duration-200 active:scale-95 shadow-sm;
   }
   .btn-secondary {
-    @apply bg-white hover:bg-gray-50 text-gray-700 font-semibold py-2.5 px-5 rounded-xl border border-gray-200 transition-all duration-200 active:scale-95;
+    @apply bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-semibold py-2.5 px-5 rounded-xl border border-gray-200 dark:border-gray-600 transition-all duration-200 active:scale-95;
   }
   .card {
-    @apply bg-white rounded-2xl shadow-card border border-gray-100;
+    @apply bg-white dark:bg-gray-800 rounded-2xl shadow-card border border-gray-100 dark:border-gray-700;
   }
   .input {
-    @apply w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 text-gray-900 placeholder-gray-400 transition-all duration-200 text-sm;
+    @apply w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-all duration-200 text-sm;
   }
   .badge {
     @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+  .page-wrapper {
+    @apply bg-gray-50 dark:bg-gray-900 min-h-screen;
+  }
+  .section-title {
+    @apply text-2xl font-bold text-gray-900 dark:text-gray-100;
+  }
+  .section-subtitle {
+    @apply text-sm text-gray-500 dark:text-gray-400 mt-0.5;
   }
 }

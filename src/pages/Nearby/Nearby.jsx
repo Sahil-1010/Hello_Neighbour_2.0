@@ -1,63 +1,96 @@
-import { useState } from "react";
-import { MapPin, Star, MessageCircle, Filter, Search, Users, Building2, Wrench, UserCheck } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { MapPin, MessageCircle, Search, Users, Wrench, Globe, Star, UserPlus, Check, Clock } from "lucide-react";
 import { Link } from "react-router-dom";
-import { users, businesses, workerCategories } from "../../data/mockData";
+import { useApp } from "../../context/AppContext";
+import { workerCategories } from "../../data/mockData";
+import "leaflet/dist/leaflet.css";
 
 const tabs = [
   { id: "people", label: "People", icon: Users },
   { id: "workers", label: "Workers", icon: Wrench },
-  { id: "businesses", label: "Businesses", icon: Building2 },
 ];
 
 const roleColors = {
-  normal: "bg-blue-100 text-blue-700",
-  worker: "bg-amber-100 text-amber-700",
-  business: "bg-purple-100 text-purple-700",
+  normal: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+  worker: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  business: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
 };
 
-function MapView() {
-  const pins = [
-    { id: 1, x: 50, y: 50, isYou: true, color: "bg-emerald-500" },
-    { id: 2, x: 30, y: 35, color: "bg-amber-500", label: "Mike" },
-    { id: 3, x: 65, y: 30, color: "bg-purple-500", label: "Emma" },
-    { id: 4, x: 70, y: 60, color: "bg-amber-500", label: "James" },
-    { id: 5, x: 35, y: 65, color: "bg-blue-500", label: "Lisa" },
-    { id: 6, x: 78, y: 45, color: "bg-purple-500", label: "Carlos" },
-    { id: 7, x: 25, y: 55, color: "bg-amber-500", label: "Priya" },
-  ];
+function MapView({ user, nearbyUsers, myNeighborhood }) {
+  const containerRef = useRef(null);
+  const mapRef = useRef(null);
+
+  useEffect(() => {
+    const coords = user?.geoLocation?.coordinates; // [lng, lat]
+    const hasCoords = coords?.length === 2 && (coords[0] !== 0 || coords[1] !== 0);
+    if (!hasCoords || !containerRef.current) return;
+
+    let cancelled = false;
+    const lat = coords[1];
+    const lng = coords[0];
+
+    import("leaflet").then(({ default: L }) => {
+      if (cancelled || mapRef.current || !containerRef.current) return;
+
+      const map = L.map(containerRef.current, { center: [lat, lng], zoom: 15, zoomControl: true });
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      }).addTo(map);
+
+      L.circleMarker([lat, lng], {
+        radius: 12, fillColor: "#10b981", color: "#fff", weight: 2, opacity: 1, fillOpacity: 0.9,
+      }).addTo(map).bindPopup("<b>You</b>");
+
+      nearbyUsers.forEach((u) => {
+        const uc = u.geoLocation?.coordinates;
+        if (!uc?.length || (uc[0] === 0 && uc[1] === 0)) return;
+        const color = u.role === "worker" ? "#f59e0b" : u.role === "business" ? "#8b5cf6" : "#3b82f6";
+        L.circleMarker([uc[1], uc[0]], {
+          radius: 8, fillColor: color, color: "#fff", weight: 2, opacity: 1, fillOpacity: 0.8,
+        }).addTo(map).bindPopup(`<b>${u.name}</b><br/><small>${u.role}</small>`);
+      });
+
+      // Draw neighborhood boundary circle
+      if (myNeighborhood?.center?.coordinates?.length === 2) {
+        const [nLng, nLat] = myNeighborhood.center.coordinates;
+        L.circle([nLat, nLng], {
+          radius: myNeighborhood.radius || 5000,
+          fillColor: "#10b981",
+          fillOpacity: 0.05,
+          color: "#10b981",
+          weight: 2,
+          dashArray: "6 4",
+        }).addTo(map).bindPopup(`<b>${myNeighborhood.name}</b>`);
+      }
+
+      mapRef.current = map;
+    });
+
+    return () => {
+      cancelled = true;
+      if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const coords = user?.geoLocation?.coordinates;
+  const hasCoords = coords?.length === 2 && (coords[0] !== 0 || coords[1] !== 0);
+
+  if (!hasCoords) {
+    return (
+      <div className="relative h-48 sm:h-56 bg-gradient-to-br from-green-50 dark:from-gray-800 via-emerald-50 dark:via-gray-800 to-teal-50 dark:to-gray-700 rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-700 flex items-center justify-center">
+        <div className="text-center">
+          <MapPin size={32} className="text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+          <p className="text-xs text-gray-400 dark:text-gray-500">Enable location during onboarding to see the live map</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="relative h-48 sm:h-56 bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 rounded-2xl overflow-hidden border border-gray-200">
-      {/* Street lines */}
-      <div className="absolute inset-0 opacity-30">
-        <div className="absolute top-1/2 left-0 right-0 h-px bg-gray-400" />
-        <div className="absolute left-1/3 top-0 bottom-0 w-px bg-gray-400" />
-        <div className="absolute left-2/3 top-0 bottom-0 w-px bg-gray-400" />
-        <div className="absolute top-1/3 left-0 right-0 h-px bg-gray-300" />
-        <div className="absolute top-2/3 left-0 right-0 h-px bg-gray-300" />
-      </div>
-
-      {/* Radius circle */}
-      <div className="absolute rounded-full border-2 border-dashed border-emerald-400 bg-emerald-400/10" style={{ width: "80%", height: "80%", left: "10%", top: "10%" }} />
-
-      {/* Pins */}
-      {pins.map((pin) => (
-        <div key={pin.id} className="absolute transform -translate-x-1/2 -translate-y-1/2 group cursor-pointer" style={{ left: `${pin.x}%`, top: `${pin.y}%` }}>
-          <div className={`${pin.color} ${pin.isYou ? "w-5 h-5 ring-4 ring-emerald-200" : "w-3.5 h-3.5"} rounded-full shadow-md transition-transform group-hover:scale-125`} />
-          {pin.isYou && (
-            <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-emerald-500 text-white text-[10px] px-2 py-0.5 rounded-full whitespace-nowrap shadow-sm">You</div>
-          )}
-          {!pin.isYou && pin.label && (
-            <div className="absolute -top-5 left-1/2 -translate-x-1/2 bg-white/90 text-gray-700 text-[10px] px-1.5 py-0.5 rounded-full whitespace-nowrap shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
-              {pin.label}
-            </div>
-          )}
-        </div>
-      ))}
-
-      {/* Legend */}
-      <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-sm">
-        <div className="flex items-center gap-3 text-[10px] text-gray-600">
+    <div className="relative z-0 rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-700" style={{ height: "220px" }}>
+      <div ref={containerRef} className="w-full h-full" />
+      <div className="absolute bottom-3 right-3 z-[1000] bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-sm pointer-events-none">
+        <div className="flex items-center gap-3 text-[10px] text-gray-600 dark:text-gray-400">
           <span className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-full bg-amber-500" />Worker</span>
           <span className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-full bg-purple-500" />Business</span>
           <span className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-full bg-blue-500" />User</span>
@@ -68,44 +101,96 @@ function MapView() {
 }
 
 function PersonCard({ person }) {
+  const { user, sendConnectionRequest, connectUser } = useApp();
+  const [connState, setConnState] = useState(() => {
+    if (!user) return "none";
+    const isConnected = (user.connectionList || []).some((id) => id.toString() === person.id || id === person.id);
+    if (isConnected) return "connected";
+    const hasRequested = (user.connectionRequestsSent || []).some((id) => id.toString() === person.id || id === person.id);
+    if (hasRequested) return "requested";
+    return "none";
+  });
+  const [loading, setLoading] = useState(false);
+
+  const handleConnect = async () => {
+    if (loading || connState === "connected") return;
+    setLoading(true);
+    try {
+      if (connState === "none") {
+        await sendConnectionRequest(person.id || person._id);
+        setConnState("requested");
+      }
+    } catch {}
+    setLoading(false);
+  };
+
   return (
     <div className="card p-4 hover:shadow-card-hover transition-all duration-200">
       <div className="flex items-start gap-3">
         <div className="relative flex-shrink-0">
-          <img src={person.avatar} alt={person.name} className="w-13 h-13 w-12 h-12 rounded-xl object-cover" />
-          {person.isOnline && <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-white" />}
+          {person.avatar ? (
+            <img src={person.avatar} alt={person.name} className="w-12 h-12 rounded-xl object-cover" />
+          ) : (
+            <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-xl font-bold text-emerald-700 dark:text-emerald-400">
+              {person.name?.[0] || "?"}
+            </div>
+          )}
+          {person.isOnline && <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-white dark:border-gray-800" />}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <div>
-              <Link to={`/profile/${person.id}`} className="font-semibold text-gray-900 text-sm hover:text-emerald-600 transition-colors">
+            <div className="min-w-0">
+              <Link to={`/profile/${person.id}`} className="font-semibold text-gray-900 dark:text-white text-sm hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
                 {person.businessName || person.name}
               </Link>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className={`badge ${roleColors[person.role]} capitalize text-[10px]`}>{person.role}</span>
-                <span className="text-xs text-emerald-600 font-medium flex items-center gap-0.5">
-                  <MapPin size={10} />{person.distance}
-                </span>
+                {person.distance && (
+                  <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-0.5">
+                    <MapPin size={10} />{person.distance}
+                  </span>
+                )}
               </div>
             </div>
-            <Link to="/chat" className="p-2 rounded-xl text-gray-400 hover:bg-emerald-50 hover:text-emerald-600 border border-gray-200 hover:border-emerald-200 transition-all flex-shrink-0">
-              <MessageCircle size={15} />
-            </Link>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {person.id !== user?.id && (
+                <button
+                  onClick={handleConnect}
+                  disabled={loading || connState === "connected" || connState === "requested"}
+                  title={connState === "connected" ? "Connected" : connState === "requested" ? "Request sent" : "Connect"}
+                  className={`p-1.5 rounded-xl border transition-all text-xs ${
+                    connState === "connected"
+                      ? "border-emerald-200 dark:border-emerald-800 text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20"
+                      : connState === "requested"
+                      ? "border-amber-200 dark:border-amber-800 text-amber-500 bg-amber-50 dark:bg-amber-900/20"
+                      : "border-gray-200 dark:border-gray-600 text-gray-400 hover:text-emerald-600 hover:border-emerald-200 dark:hover:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+                  }`}
+                >
+                  {connState === "connected" ? <Check size={13} /> : connState === "requested" ? <Clock size={13} /> : <UserPlus size={13} />}
+                </button>
+              )}
+              <Link
+                to={`/chat?userId=${person.id || person._id}`}
+                className="p-1.5 rounded-xl text-gray-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 hover:text-emerald-600 dark:hover:text-emerald-400 border border-gray-200 dark:border-gray-600 hover:border-emerald-200 dark:hover:border-emerald-800 transition-all flex-shrink-0"
+              >
+                <MessageCircle size={14} />
+              </Link>
+            </div>
           </div>
-          {person.bio && <p className="text-xs text-gray-500 mt-1.5 line-clamp-2 leading-relaxed">{person.bio}</p>}
-          {person.skills && person.skills.length > 0 && (
+          {person.bio && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 line-clamp-2 leading-relaxed">{person.bio}</p>}
+          {person.skills?.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">
               {person.skills.slice(0, 3).map((s) => (
-                <span key={s} className="badge bg-emerald-50 text-emerald-700 text-[10px]">{s}</span>
+                <span key={s} className="badge bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 text-[10px]">{s}</span>
               ))}
             </div>
           )}
           {person.rating && (
             <div className="flex items-center gap-1.5 mt-2">
               <Star size={12} className="text-amber-400 fill-amber-400" />
-              <span className="text-xs font-semibold text-gray-700">{person.rating}</span>
-              <span className="text-xs text-gray-400">({person.reviewCount})</span>
-              {person.hourlyRate && <span className="text-xs font-semibold text-emerald-600 ml-auto">{person.hourlyRate}</span>}
+              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{person.rating}</span>
+              <span className="text-xs text-gray-400 dark:text-gray-500">({person.reviewCount})</span>
+              {person.hourlyRate && <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 ml-auto">{person.hourlyRate}</span>}
             </div>
           )}
         </div>
@@ -114,154 +199,138 @@ function PersonCard({ person }) {
   );
 }
 
-function BusinessCard({ business }) {
-  return (
-    <div className="card overflow-hidden hover:shadow-card-hover transition-all duration-200">
-      <div className="h-32 relative">
-        <img src={business.image} alt={business.name} className="w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-        <div className="absolute bottom-2 left-3 right-3 flex items-end justify-between">
-          <span className={`badge ${business.isOpen ? "bg-emerald-500 text-white" : "bg-gray-600 text-white"} text-[10px]`}>
-            {business.isOpen ? "● Open" : "● Closed"}
-          </span>
-          <span className="text-white text-xs font-medium">{business.distance}</span>
-        </div>
-      </div>
-      <div className="p-4">
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <div>
-            <h3 className="font-semibold text-gray-900 text-sm">{business.name}</h3>
-            <p className="text-xs text-gray-500">{business.category}</p>
-          </div>
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <Star size={13} className="text-amber-400 fill-amber-400" />
-            <span className="text-sm font-semibold text-gray-700">{business.rating}</span>
-          </div>
-        </div>
-        <p className="text-xs text-gray-600 line-clamp-2 mb-3">{business.description}</p>
-        {business.offers.length > 0 && (
-          <div className="bg-emerald-50 rounded-xl p-2.5 mb-3">
-            <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide mb-1">Active Offer</p>
-            <p className="text-xs text-emerald-800">🎉 {business.offers[0]}</p>
-          </div>
-        )}
-        <div className="flex items-center gap-2">
-          <Link to="/chat" className="btn-secondary flex-1 py-2 text-xs text-center">Message</Link>
-          <button className="btn-primary flex-1 py-2 text-xs">View</button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function Nearby() {
+  const { currentNeighborhood, nearbyUsers, neighborhoodsList, fetchNeighborhoods, user } = useApp();
   const [activeTab, setActiveTab] = useState("people");
   const [activeCategory, setActiveCategory] = useState("All");
   const [search, setSearch] = useState("");
 
-  const workers = users.filter((u) => u.role === "worker");
-  const people = users.filter((u) => u.role !== "business");
+  useEffect(() => {
+    const coords = user?.geoLocation?.coordinates; // [lng, lat]
+    const hasCoords = coords?.length === 2 && (coords[0] !== 0 || coords[1] !== 0);
+    const opts = hasCoords ? { lat: coords[1], lng: coords[0] } : {};
+    fetchNeighborhoods(opts).catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const filteredPeople = people.filter(
-    (u) => !search || u.name.toLowerCase().includes(search.toLowerCase())
+  const myNeighborhood = neighborhoodsList.find((n) => n.name === currentNeighborhood) || null;
+
+  const otherNeighborhoods = neighborhoodsList.filter(
+    (n) => n.name !== currentNeighborhood
   );
-  const filteredWorkers = workers.filter(
-    (u) =>
-      (!search || u.name.toLowerCase().includes(search.toLowerCase())) &&
-      (activeCategory === "All" || (u.skills && u.skills.some((s) => s.includes(activeCategory))))
+
+  const workers = nearbyUsers.filter((u) => u.role === "worker");
+  const people = nearbyUsers.filter((u) => u.role !== "business");
+
+  const filteredPeople = people.filter((u) => !search || u.name.toLowerCase().includes(search.toLowerCase()));
+  const filteredWorkers = workers.filter((u) =>
+    (!search || u.name.toLowerCase().includes(search.toLowerCase())) &&
+    (activeCategory === "All" || u.skills?.some((s) => s.includes(activeCategory)))
   );
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-5">
-      {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Nearby</h1>
-        <p className="text-sm text-gray-500 mt-0.5">People, workers & businesses within 5 km of you</p>
+        <h1 className="section-title">Nearby</h1>
+        <p className="section-subtitle">
+          <span className="text-emerald-600 dark:text-emerald-400 font-medium">{currentNeighborhood}</span>
+          {" · "}People & workers in your neighborhood
+        </p>
       </div>
 
-      {/* Map */}
-      <MapView />
+      <MapView user={user} nearbyUsers={nearbyUsers} myNeighborhood={myNeighborhood} />
 
-      {/* Search */}
       <div className="relative">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={`Search ${activeTab}...`}
-          className="input pl-9"
-        />
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={`Search ${activeTab}...`} className="input pl-9" />
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-gray-200">
+      <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700">
         {tabs.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             onClick={() => setActiveTab(id)}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all -mb-px ${
               activeTab === id
-                ? "border-emerald-500 text-emerald-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
+                ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
+                : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
             }`}
           >
             <Icon size={15} />
             {label}
-            <span className="badge bg-gray-100 text-gray-600 text-[10px] ml-0.5">
-              {id === "people" ? filteredPeople.length : id === "workers" ? workers.length : businesses.length}
+            <span className="badge bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 text-[10px] ml-0.5">
+              {id === "people" ? filteredPeople.length : workers.length}
             </span>
           </button>
         ))}
       </div>
 
-      {/* Category filter — only for workers */}
       {activeTab === "workers" && (
         <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-1">
           {workerCategories.map((cat) => (
-            <button
-              key={cat.name}
-              onClick={() => setActiveCategory(cat.name)}
+            <button key={cat.name} onClick={() => setActiveCategory(cat.name)}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all flex-shrink-0 ${
                 activeCategory === cat.name
                   ? "bg-emerald-500 text-white"
-                  : "bg-white border border-gray-200 text-gray-600 hover:border-gray-300"
-              }`}
-            >
+                  : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600"
+              }`}>
               <span>{cat.icon}</span> {cat.name}
             </button>
           ))}
         </div>
       )}
 
-      {/* Content */}
       {activeTab === "people" && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredPeople.map((person) => (
-            <PersonCard key={person.id} person={person} />
-          ))}
+          {filteredPeople.map((p) => <PersonCard key={p.id} person={p} />)}
         </div>
       )}
-
       {activeTab === "workers" && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredWorkers.map((worker) => (
-            <PersonCard key={worker.id} person={worker} />
-          ))}
+          {filteredWorkers.map((w) => <PersonCard key={w.id} person={w} />)}
           {filteredWorkers.length === 0 && (
             <div className="col-span-full card p-12 text-center">
               <p className="text-4xl mb-3">🔍</p>
-              <p className="text-gray-500 text-sm">No workers found in this category.</p>
+              <p className="text-gray-500 dark:text-gray-400 text-sm">No workers found in this category.</p>
             </div>
           )}
         </div>
       )}
-
-      {activeTab === "businesses" && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {businesses.map((business) => (
-            <BusinessCard key={business.id} business={business} />
-          ))}
+      {/* Other Neighborhoods */}
+      {otherNeighborhoods.length > 0 && (
+        <div className="pt-2">
+          <div className="flex items-center gap-2 mb-3">
+            <Globe size={16} className="text-emerald-500" />
+            <h2 className="font-semibold text-gray-900 dark:text-white text-sm">Other Neighborhoods</h2>
+            <span className="badge bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 text-[10px]">
+              {otherNeighborhoods.length}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {otherNeighborhoods.map((n) => (
+              <div key={n.id || n._id} className="card p-4 flex items-center gap-3">
+                <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <MapPin size={18} className="text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{n.name}</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {n.memberCount > 0 && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{n.memberCount} members</p>
+                    )}
+                    {n.distance != null && (
+                      <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                        {n.distance < 1000
+                          ? `${Math.round(n.distance)}m away`
+                          : `${(n.distance / 1000).toFixed(1)}km away`}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

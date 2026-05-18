@@ -1,11 +1,26 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Building2, TrendingUp, Eye, MessageCircle, Star, Plus, Edit3, Tag,
-  Briefcase, ToggleLeft, ToggleRight, ChevronRight, BarChart3, Users, Clock,
+  ToggleLeft, ToggleRight, ChevronRight, BarChart3, Users, Clock, Phone, Trash2, ShoppingBag,
+  Megaphone, Package,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
-import { businesses, jobs } from "../../data/mockData";
+import { api } from "../../services/api";
 import Modal from "../../components/common/Modal";
+import { CategoryIcon } from "../../utils/categoryIcons";
+
+// ── Static helpers ────────────────────────────────────────────────────────────
+
+const CATEGORIES = [
+  "Restaurant", "Cafe", "Grocery", "Hospital", "Pharmacy", "Hotel",
+  "Bakery", "Salon", "Gym", "Hardware", "Electronics", "Clothing",
+  "Laundry", "Repair", "Education", "Other",
+];
+
+// Category icons are rendered via CategoryIcon component from utils/categoryIcons
+
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 function StatCard({ icon: Icon, label, value, change, color }) {
   return (
@@ -15,38 +30,84 @@ function StatCard({ icon: Icon, label, value, change, color }) {
           <Icon size={20} className="text-white" />
         </div>
         {change && (
-          <span className={`text-xs font-medium px-2 py-1 rounded-full ${change > 0 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+          <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+            change > 0
+              ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400"
+              : "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400"
+          }`}>
             {change > 0 ? "+" : ""}{change}%
           </span>
         )}
       </div>
-      <div className="text-2xl font-bold text-gray-900 mb-0.5">{value}</div>
-      <div className="text-xs text-gray-500">{label}</div>
+      <div className="text-2xl font-bold text-gray-900 dark:text-white mb-0.5">{value}</div>
+      <div className="text-xs text-gray-500 dark:text-gray-400">{label}</div>
     </div>
   );
 }
 
-function OfferCard({ offer, onToggle }) {
-  const [active, setActive] = useState(true);
+function OfferCard({ offer, businessId, onUpdate, onDelete }) {
+  const [saving, setSaving] = useState(false);
+
+  const handleToggle = async () => {
+    setSaving(true);
+    try {
+      const updated = await api.put(`/businesses/${businessId}/offers/${offer._id}`, {
+        isActive: !offer.isActive,
+      });
+      onUpdate(updated);
+    } catch (_) {
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm("Delete this offer?")) return;
+    try {
+      const updated = await api.delete(`/businesses/${businessId}/offers/${offer._id}`);
+      onDelete(updated);
+    } catch (_) {}
+  };
+
   return (
-    <div className={`card p-4 transition-all ${!active ? "opacity-60" : ""}`}>
+    <div className={`card p-4 transition-all ${!offer.isActive ? "opacity-60" : ""}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-lg">🎉</span>
-            <p className="font-semibold text-gray-900 text-sm">{offer}</p>
+            <Tag size={15} className="text-emerald-500 flex-shrink-0" />
+            <p className="font-semibold text-gray-900 dark:text-white text-sm">{offer.title}</p>
           </div>
-          <p className="text-xs text-gray-500">Posted 3 days ago · 45 views</p>
+          {offer.discount && (
+            <span className="inline-block text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full mb-1">
+              {offer.discount}
+            </span>
+          )}
+          {offer.description && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 leading-snug">{offer.description}</p>
+          )}
+          {offer.validUntil && (
+            <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">
+              Valid until {new Date(offer.validUntil).toLocaleDateString()}
+            </p>
+          )}
+          <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
+            {offer.isActive ? "Visible to neighbors" : "Hidden from public"}
+          </p>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-1 flex-shrink-0">
           <button
-            onClick={() => setActive(!active)}
-            className={`transition-colors ${active ? "text-emerald-500" : "text-gray-400"}`}
+            onClick={handleToggle}
+            disabled={saving}
+            className={`transition-colors disabled:opacity-50 ${offer.isActive ? "text-emerald-500" : "text-gray-400"}`}
+            title={offer.isActive ? "Disable offer" : "Enable offer"}
           >
-            {active ? <ToggleRight size={28} /> : <ToggleLeft size={28} />}
+            {offer.isActive ? <ToggleRight size={28} /> : <ToggleLeft size={28} />}
           </button>
-          <button className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors">
-            <Edit3 size={15} />
+          <button
+            onClick={handleDelete}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+          >
+            <Trash2 size={14} />
           </button>
         </div>
       </div>
@@ -54,100 +115,421 @@ function OfferCard({ offer, onToggle }) {
   );
 }
 
-function CreateOfferModal({ isOpen, onClose }) {
-  const [form, setForm] = useState({ title: "", description: "", discount: "", validUntil: "" });
+// ── Create Business Modal ─────────────────────────────────────────────────────
+
+function CreateBusinessModal({ isOpen, onClose, onCreated }) {
+  const { addToast } = useApp();
+  const [form, setForm] = useState({
+    name: "", category: "", description: "", phone: "", hours: "", image: "",
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const update = (field) => (e) => setForm((prev) => ({ ...prev, [field]: e.target.value }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.name || !form.category) {
+      setError("Business name and category are required.");
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      const created = await api.post("/businesses", { ...form });
+      onCreated(created);
+      addToast({ type: "success", message: "Business profile created!" });
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Create Offer / Ad">
-      <div className="space-y-4">
+    <Modal isOpen={isOpen} onClose={onClose} title="Create Business Profile">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Offer title *</label>
-          <input
-            type="text"
-            value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
-            placeholder="e.g., 30% off all pastries this Friday"
-            className="input"
-          />
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Business name *</label>
+          <input type="text" value={form.name} onChange={update("name")} placeholder="e.g., The Corner Bakery" className="input" required />
         </div>
+
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Category *</label>
+          <select value={form.category} onChange={update("category")} className="input" required>
+            <option value="">Select a category…</option>
+            {CATEGORIES.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Description</label>
           <textarea
             value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-            placeholder="Describe your offer in detail..."
+            onChange={update("description")}
+            placeholder="Tell neighbors what makes your business special…"
             rows={3}
             className="input resize-none"
           />
         </div>
+
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Discount / Value</label>
-            <input
-              type="text"
-              value={form.discount}
-              onChange={(e) => setForm({ ...form, discount: e.target.value })}
-              placeholder="e.g., 30% off"
-              className="input"
-            />
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Phone</label>
+            <input type="tel" value={form.phone} onChange={update("phone")} placeholder="+1 234 567 8900" className="input" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Valid until</label>
-            <input
-              type="date"
-              value={form.validUntil}
-              onChange={(e) => setForm({ ...form, validUntil: e.target.value })}
-              className="input"
-            />
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Hours</label>
+            <input type="text" value={form.hours} onChange={update("hours")} placeholder="Mon–Sat 8am–8pm" className="input" />
           </div>
         </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Cover image URL</label>
+          <input type="url" value={form.image} onChange={update("image")} placeholder="https://example.com/photo.jpg" className="input" />
+        </div>
+
+        {error && (
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
+            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          </div>
+        )}
+
         <div className="flex gap-3 pt-2">
-          <button onClick={onClose} className="btn-secondary flex-1 py-2.5">Cancel</button>
-          <button
-            onClick={onClose}
-            disabled={!form.title}
-            className="btn-primary flex-1 py-2.5 disabled:opacity-50"
-          >
-            Publish Offer
+          <button type="button" onClick={onClose} className="btn-secondary flex-1 py-2.5">Cancel</button>
+          <button type="submit" disabled={loading || !form.name || !form.category} className="btn-primary flex-1 py-2.5 disabled:opacity-50">
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Creating…
+              </span>
+            ) : "Create Business"}
           </button>
         </div>
-      </div>
+      </form>
     </Modal>
   );
 }
 
-export default function BusinessDashboard() {
-  const { user } = useApp();
-  const [showOfferModal, setShowOfferModal] = useState(false);
-  const business = businesses[0];
-  const businessJobs = jobs.filter((j) => j.status !== "completed").slice(0, 3);
+// ── Create Offer Modal ────────────────────────────────────────────────────────
 
+function CreateOfferModal({ isOpen, onClose, businessId, onCreated }) {
+  const { addToast } = useApp();
+  const [form, setForm] = useState({ title: "", description: "", discount: "", validUntil: "", imageUrl: "" });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.title) { setError("Offer title is required."); return; }
+    setError("");
+    setLoading(true);
+    try {
+      const updated = await api.post(`/businesses/${businessId}/offers`, form);
+      onCreated(updated);
+      addToast({ type: "success", message: "Offer published! 📢" });
+      setForm({ title: "", description: "", discount: "", validUntil: "", imageUrl: "" });
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Create Offer / Ad">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Offer title *</label>
+          <input type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
+            placeholder="e.g., 30% off all pastries this Friday" className="input" required />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Description</label>
+          <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
+            placeholder="Describe your offer…" rows={3} className="input resize-none" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Discount / Value</label>
+            <input type="text" value={form.discount} onChange={(e) => setForm({ ...form, discount: e.target.value })}
+              placeholder="e.g., 30% off" className="input" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Valid until</label>
+            <input type="date" value={form.validUntil} onChange={(e) => setForm({ ...form, validUntil: e.target.value })}
+              className="input" />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Offer image URL</label>
+          <input type="url" value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+            placeholder="https://example.com/offer.jpg" className="input" />
+        </div>
+
+        {error && (
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
+            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          </div>
+        )}
+
+        <div className="flex gap-3 pt-2">
+          <button type="button" onClick={onClose} className="btn-secondary flex-1 py-2.5">Cancel</button>
+          <button type="submit" disabled={loading || !form.title} className="btn-primary flex-1 py-2.5 disabled:opacity-50">
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Publishing…
+              </span>
+            ) : "Publish Offer"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// ── Edit Business Modal ───────────────────────────────────────────────────────
+
+function EditBusinessModal({ isOpen, onClose, business, onUpdated }) {
+  const { addToast } = useApp();
+  const [form, setForm] = useState({
+    name:        business.name || "",
+    category:    business.category || "",
+    description: business.description || "",
+    phone:       business.phone || "",
+    hours:       business.hours || "",
+    image:       business.image || "",
+    isOpen:      business.isOpen ?? true,
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const update = (field) => (e) => {
+    const val = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+    setForm((prev) => ({ ...prev, [field]: val }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.name || !form.category) { setError("Name and category are required."); return; }
+    setError("");
+    setLoading(true);
+    try {
+      const bizId = business._id || business.id;
+      const updated = await api.put(`/businesses/${bizId}`, { ...form });
+      onUpdated(updated);
+      addToast({ type: "success", message: "Business profile updated!" });
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Edit Business Profile">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Business name *</label>
+          <input type="text" value={form.name} onChange={update("name")} className="input" required />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Category *</label>
+          <select value={form.category} onChange={update("category")} className="input" required>
+            <option value="">Select a category…</option>
+            {CATEGORIES.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Description</label>
+          <textarea value={form.description} onChange={update("description")} rows={3} className="input resize-none" />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Phone</label>
+            <input type="tel" value={form.phone} onChange={update("phone")} className="input" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Hours</label>
+            <input type="text" value={form.hours} onChange={update("hours")} className="input" />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Cover image URL</label>
+          <input type="url" value={form.image} onChange={update("image")} placeholder="https://…" className="input" />
+        </div>
+
+        <div className="flex items-center gap-3">
+          <input type="checkbox" id="biz-isopen" checked={form.isOpen} onChange={update("isOpen")} className="w-4 h-4 accent-emerald-500" />
+          <label htmlFor="biz-isopen" className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">Currently open</label>
+        </div>
+
+        {error && (
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
+            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          </div>
+        )}
+
+        <div className="flex gap-3 pt-2">
+          <button type="button" onClick={onClose} className="btn-secondary flex-1 py-2.5">Cancel</button>
+          <button type="submit" disabled={loading} className="btn-primary flex-1 py-2.5 disabled:opacity-50">
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Saving…
+              </span>
+            ) : "Save Changes"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// ── No Business Screen ────────────────────────────────────────────────────────
+
+function NoBusiness({ onCreateClick }) {
+  return (
+    <div className="max-w-lg mx-auto px-4 py-16 text-center">
+      <div className="w-24 h-24 bg-emerald-100 dark:bg-emerald-900/30 rounded-3xl flex items-center justify-center mx-auto mb-6">
+        <Building2 size={48} className="text-emerald-500" />
+      </div>
+      <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Set Up Your Business</h2>
+      <p className="text-gray-500 dark:text-gray-400 mb-2 leading-relaxed">
+        Create your business profile to start reaching customers in your neighborhood.
+      </p>
+      <p className="text-sm text-gray-400 dark:text-gray-500 mb-8">
+        Your profile will appear in the Business Directory and on the Nearby map for everyone in your area.
+      </p>
+      <div className="space-y-3 mb-8 text-left">
+        {[
+          { icon: Megaphone, text: "Post offers and promotions" },
+          { icon: Star,      text: "Collect reviews from real customers" },
+          { icon: MessageCircle, text: "Receive direct messages from interested neighbors" },
+          { icon: TrendingUp, text: "Track profile views and engagement" },
+        ].map(({ icon: ItemIcon, text }) => (
+          <div key={text} className="flex items-center gap-3 bg-gray-50 dark:bg-gray-800 rounded-xl px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+            <ItemIcon size={16} className="text-emerald-500 flex-shrink-0" />
+            {text}
+          </div>
+        ))}
+      </div>
+      <button onClick={onCreateClick} className="btn-primary px-8 py-3 text-base flex items-center gap-2 mx-auto">
+        <Plus size={20} /> Create Business Profile
+      </button>
+    </div>
+  );
+}
+
+// ── Main Dashboard ────────────────────────────────────────────────────────────
+
+const ORDER_STATUS_CONFIG = {
+  pending:  { label: "Pending",  className: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300" },
+  accepted: { label: "Accepted", className: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300" },
+  partial:  { label: "Partial",  className: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" },
+  rejected: { label: "Rejected", className: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300" },
+};
+
+export default function BusinessDashboard() {
+  const { user, addToast, addBusiness, updateBusiness, startConversation } = useApp();
+  const navigate = useNavigate();
+  const [myBusiness, setMyBusiness] = useState(null);
+  const [businessLoading, setBusinessLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showOfferModal, setShowOfferModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [businessOrders, setBusinessOrders] = useState([]);
+
+  useEffect(() => {
+    api.get("/businesses/my")
+      .then((data) => setMyBusiness(data[0] || null))
+      .catch(() => {})
+      .finally(() => setBusinessLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (!myBusiness) return;
+    const bizId = myBusiness._id || myBusiness.id;
+    api.get(`/orders/business/${bizId}`)
+      .then(setBusinessOrders)
+      .catch(() => {});
+  }, [myBusiness]);
+
+  const handleBusinessCreated = (newBusiness) => {
+    setMyBusiness(newBusiness);
+    addBusiness(newBusiness); // sync with public business list
+  };
+
+  // Called when an offer is added or toggled — the server returns the full updated business
+  const handleBusinessUpdated = (updated) => {
+    setMyBusiness(updated);
+    updateBusiness(updated); // sync with public business list
+  };
+
+  const pendingOrders = businessOrders.filter((o) => o.status === "pending").length;
   const stats = [
-    { icon: Eye, label: "Profile Views", value: "1,247", change: 12, color: "bg-blue-500" },
-    { icon: MessageCircle, label: "Inquiries", value: "34", change: 8, color: "bg-purple-500" },
-    { icon: Users, label: "Followers", value: "312", change: 5, color: "bg-emerald-500" },
-    { icon: Star, label: "Avg Rating", value: "4.7", change: null, color: "bg-amber-500" },
+    { icon: ShoppingBag, label: "Total Orders", value: businessOrders.length, change: null, color: "bg-blue-500" },
+    { icon: Clock, label: "Pending", value: pendingOrders, change: null, color: "bg-purple-500" },
+    { icon: Users, label: "Connections", value: myBusiness?.members?.length ?? "—", change: null, color: "bg-emerald-500" },
+    { icon: Star, label: "Avg Rating", value: myBusiness?.rating > 0 ? myBusiness.rating.toFixed(1) : "—", change: null, color: "bg-amber-500" },
   ];
 
   const recentActivity = [
-    { icon: "👁️", text: "15 people viewed your business profile", time: "1 hour ago" },
-    { icon: "💬", text: "New message from Sarah Johnson", time: "2 hours ago" },
-    { icon: "⭐", text: "James Wilson left a 5-star review", time: "5 hours ago" },
-    { icon: "📢", text: "Your Friday offer reached 245 people", time: "1 day ago" },
+    { icon: Eye,        text: "15 people viewed your business profile", time: "1 hour ago" },
+    { icon: MessageCircle, text: "New message from a neighbor",         time: "2 hours ago" },
+    { icon: Star,       text: "Someone left a 5-star review",           time: "5 hours ago" },
+    { icon: Megaphone,  text: "Your offer reached 245 people",          time: "1 day ago" },
   ];
+
+  if (businessLoading) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 py-16 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-gray-500 dark:text-gray-400 text-sm">Loading your business…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!myBusiness) {
+    return (
+      <>
+        <NoBusiness onCreateClick={() => setShowCreateModal(true)} />
+        <CreateBusinessModal
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          onCreated={handleBusinessCreated}
+        />
+      </>
+    );
+  }
+
+  const activeOffers = myBusiness.offers?.filter((o) => o.isActive) || [];
+  const allOffers = myBusiness.offers || [];
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Business Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Manage your business profile and offerings</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Business Dashboard</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Manage your business profile and offerings</p>
         </div>
-        <button
-          onClick={() => setShowOfferModal(true)}
-          className="btn-primary flex items-center gap-2"
-        >
+        <button onClick={() => setShowOfferModal(true)} className="btn-primary flex items-center gap-2">
           <Plus size={18} />
           <span className="hidden sm:inline">New Offer</span>
         </button>
@@ -156,148 +538,268 @@ export default function BusinessDashboard() {
       {/* Business Profile Card */}
       <div className="card overflow-hidden">
         <div className="h-36 relative">
-          <img src={business.image} alt={business.name} className="w-full h-full object-cover" />
+          {myBusiness.image ? (
+            <img src={myBusiness.image} alt={myBusiness.name} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center">
+              <CategoryIcon category={myBusiness.category} size={52} className="text-white/80" />
+            </div>
+          )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
           <div className="absolute bottom-3 right-3 flex gap-2">
-            <span className={`badge ${business.isOpen ? "bg-emerald-500 text-white" : "bg-gray-600 text-white"}`}>
-              {business.isOpen ? "● Open Now" : "● Closed"}
+            <span className={`badge ${myBusiness.isOpen ? "bg-emerald-500 text-white" : "bg-gray-600 text-white"}`}>
+              {myBusiness.isOpen ? "● Open Now" : "● Closed"}
             </span>
           </div>
         </div>
         <div className="p-5 -mt-8">
           <div className="flex items-end justify-between mb-3">
-            <div className="w-16 h-16 bg-white rounded-2xl shadow-md border border-gray-100 flex items-center justify-center text-3xl">
-              🏪
+            <div className="w-16 h-16 bg-white dark:bg-gray-700 rounded-2xl shadow-md border border-gray-100 dark:border-gray-600 flex items-center justify-center">
+              <CategoryIcon category={myBusiness.category} size={28} className="text-emerald-500" />
             </div>
-            <button className="btn-secondary py-2 px-4 text-sm flex items-center gap-1.5 mt-8">
-              <Edit3 size={14} />
-              Edit Profile
+            <button onClick={() => setShowEditModal(true)} className="btn-secondary py-2 px-4 text-sm flex items-center gap-1.5 mt-8">
+              <Edit3 size={14} /> Edit Profile
             </button>
           </div>
-          <h2 className="text-xl font-bold text-gray-900">{business.name}</h2>
-          <p className="text-sm text-gray-500 mb-1">{business.category}</p>
-          <p className="text-sm text-gray-600 leading-relaxed mb-3">{business.description}</p>
-          <div className="flex items-center gap-4 text-sm text-gray-500">
-            <span className="flex items-center gap-1.5">
-              <Star size={14} className="text-amber-400 fill-amber-400" />
-              <span className="font-semibold text-gray-900">{business.rating}</span>
-              ({business.reviewCount} reviews)
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Clock size={14} />
-              {business.hours}
-            </span>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">{myBusiness.name}</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">{myBusiness.category}</p>
+          {myBusiness.description && (
+            <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed mb-3">{myBusiness.description}</p>
+          )}
+          <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+            {myBusiness.rating > 0 && (
+              <span className="flex items-center gap-1.5">
+                <Star size={14} className="text-amber-400 fill-amber-400" />
+                <span className="font-semibold text-gray-900 dark:text-white">{myBusiness.rating}</span>
+                ({myBusiness.reviewCount} reviews)
+              </span>
+            )}
+            {myBusiness.hours && (
+              <span className="flex items-center gap-1.5"><Clock size={14} />{myBusiness.hours}</span>
+            )}
+            {myBusiness.phone && (
+              <span className="flex items-center gap-1.5"><Phone size={14} />{myBusiness.phone}</span>
+            )}
           </div>
         </div>
       </div>
 
       {/* Stats Grid */}
       <div>
-        <h2 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+        <h2 className="font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
           <BarChart3 size={18} className="text-emerald-500" />
           Performance Overview
         </h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {stats.map((stat) => (
-            <StatCard key={stat.label} {...stat} />
-          ))}
+          {stats.map((stat) => <StatCard key={stat.label} {...stat} />)}
         </div>
       </div>
 
-      {/* Weekly chart placeholder */}
+      {/* Weekly chart */}
       <div className="card p-5">
-        <h3 className="font-bold text-gray-900 mb-4 text-sm">Weekly Engagement</h3>
+        <h3 className="font-bold text-gray-900 dark:text-white mb-4 text-sm">Weekly Engagement</h3>
         <div className="flex items-end gap-2 h-24">
           {[40, 65, 45, 80, 55, 90, 70].map((h, i) => (
             <div key={i} className="flex-1 flex flex-col items-center gap-1">
-              <div
-                className="w-full rounded-t-lg bg-emerald-500/80 hover:bg-emerald-500 transition-all cursor-pointer"
-                style={{ height: `${h}%` }}
-              />
-              <span className="text-[10px] text-gray-400">
-                {["M", "T", "W", "T", "F", "S", "S"][i]}
-              </span>
+              <div className="w-full rounded-t-lg bg-emerald-500/80 hover:bg-emerald-500 transition-all cursor-pointer" style={{ height: `${h}%` }} />
+              <span className="text-[10px] text-gray-400 dark:text-gray-500">{["M","T","W","T","F","S","S"][i]}</span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Active Offers */}
+      {/* Manage Offers */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-gray-900 flex items-center gap-2">
-            <Tag size={18} className="text-emerald-500" />
-            Active Offers & Ads
-          </h2>
+          <div>
+            <h2 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <Tag size={18} className="text-emerald-500" />
+              Manage Offers & Ads
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              {activeOffers.length} of {allOffers.length} offers visible to neighbors
+            </p>
+          </div>
           <button
             onClick={() => setShowOfferModal(true)}
-            className="text-sm text-emerald-600 font-medium hover:text-emerald-700 flex items-center gap-1"
+            className="text-sm text-emerald-600 dark:text-emerald-400 font-medium hover:text-emerald-700 dark:hover:text-emerald-300 flex items-center gap-1"
           >
             <Plus size={14} /> Add offer
           </button>
         </div>
-        <div className="space-y-3">
-          {business.offers.map((offer, i) => (
-            <OfferCard key={i} offer={offer} />
-          ))}
-        </div>
+
+        {allOffers.length === 0 ? (
+          <div className="card p-8 text-center border-dashed border-2 border-gray-200 dark:border-gray-700">
+            <Megaphone size={32} className="text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+            <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">No offers yet</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Create an offer to attract more customers</p>
+            <button onClick={() => setShowOfferModal(true)} className="btn-primary py-2 px-6 text-sm">
+              Create First Offer
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {allOffers.map((offer) => (
+              <OfferCard
+                key={offer._id}
+                offer={offer}
+                businessId={myBusiness._id || myBusiness.id}
+                onUpdate={handleBusinessUpdated}
+                onDelete={handleBusinessUpdated}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Job Requests */}
+      {/* Order Requests */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-gray-900 flex items-center gap-2">
-            <Briefcase size={18} className="text-emerald-500" />
-            Job Requests
-          </h2>
-          <a href="/jobs" className="text-sm text-emerald-600 font-medium hover:text-emerald-700 flex items-center gap-1">
-            View all <ChevronRight size={14} />
-          </a>
+          <div>
+            <h2 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <ShoppingBag size={18} className="text-emerald-500" />
+              Incoming Orders
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              Direct orders placed by your neighbors
+            </p>
+          </div>
+          <span className="badge bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
+            {businessOrders.length}
+          </span>
         </div>
-        <div className="space-y-3">
-          {businessJobs.map((job) => (
-            <div key={job.id} className="card p-4 flex items-center gap-3">
-              <span className="text-2xl">{job.categoryIcon}</span>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-gray-900 text-sm truncate">{job.title}</p>
-                <p className="text-xs text-gray-500">{job.budget} · {job.postedAt}</p>
-              </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <span className={`badge text-[10px] ${
-                  job.status === "pending" ? "bg-amber-100 text-amber-700" :
-                  job.status === "ongoing" ? "bg-blue-100 text-blue-700" :
-                  "bg-emerald-100 text-emerald-700"
-                }`}>
-                  {job.status}
-                </span>
-                <button className="p-1.5 text-gray-400 hover:text-emerald-600 transition-colors">
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+
+        {businessOrders.length === 0 ? (
+          <div className="card p-8 text-center border-dashed border-2 border-gray-200 dark:border-gray-700">
+            <ShoppingBag size={32} className="text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+            <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">No orders yet</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              When neighbors place orders on your business page, they'll appear here.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {businessOrders.slice(0, 10).map((order) => {
+              const sc = ORDER_STATUS_CONFIG[order.status] || ORDER_STATUS_CONFIG.pending;
+              const customer = order.userId;
+              return (
+                <div key={order.id || order._id} className="card p-4">
+                  <div className="flex items-start gap-3">
+                    {customer?.avatar ? (
+                      <img src={customer.avatar} alt={customer.name} className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-sm font-bold text-gray-600 dark:text-gray-400 flex-shrink-0">
+                        {customer?.name?.[0] || "?"}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">{customer?.name || "Unknown"}</p>
+                        <span className={`badge text-[10px] ${sc.className}`}>{sc.label}</span>
+                        <span className="text-xs text-gray-400 dark:text-gray-500 ml-auto">
+                          {new Date(order.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                      {order.comment && (
+                        <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2 mb-1.5">{order.comment}</p>
+                      )}
+                      {order.items?.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-1.5">
+                          {order.items.slice(0, 5).map((item, i) => (
+                            <span key={i} className="badge bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 text-[10px]">
+                              {item.name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {order.budget && (
+                        <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Budget: {order.budget}</p>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-1 flex-shrink-0">
+                      {order.status === "pending" && (
+                        <>
+                          <button
+                            onClick={async () => {
+                              try {
+                                const updated = await api.put(`/orders/${order.id || order._id}/status`, { status: "accepted" });
+                                setBusinessOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+                              } catch {}
+                            }}
+                            className="py-1 px-2.5 text-[10px] rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white transition-colors"
+                          >
+                            Accept
+                          </button>
+                          <button
+                            onClick={async () => {
+                              try {
+                                const updated = await api.put(`/orders/${order.id || order._id}/status`, { status: "rejected" });
+                                setBusinessOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+                              } catch {}
+                            }}
+                            className="py-1 px-2.5 text-[10px] rounded-lg border border-red-200 dark:border-red-800 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                          >
+                            Reject
+                          </button>
+                        </>
+                      )}
+                      <button
+                        onClick={async () => {
+                          const customerId = customer?._id || customer?.id;
+                          if (!customerId) return;
+                          try { await startConversation(customerId); } catch {}
+                          navigate(`/chat?userId=${customerId}`);
+                        }}
+                        className="py-1 px-2.5 text-[10px] rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-colors flex items-center justify-center gap-1"
+                      >
+                        <MessageCircle size={10} /> Chat
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Recent Activity */}
       <div>
-        <h2 className="font-bold text-gray-900 mb-3">Recent Activity</h2>
-        <div className="card divide-y divide-gray-100">
+        <h2 className="font-bold text-gray-900 dark:text-white mb-3">Recent Activity</h2>
+        <div className="card divide-y divide-gray-100 dark:divide-gray-700">
           {recentActivity.map((item, i) => (
-            <div key={i} className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition-colors">
-              <div className="w-9 h-9 bg-gray-100 rounded-xl flex items-center justify-center text-lg flex-shrink-0">
-                {item.icon}
+            <div key={i} className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+              <div className="w-9 h-9 bg-gray-100 dark:bg-gray-700 rounded-xl flex items-center justify-center flex-shrink-0">
+                <item.icon size={17} className="text-emerald-500" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-gray-700">{item.text}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{item.time}</p>
+                <p className="text-sm text-gray-700 dark:text-gray-300">{item.text}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{item.time}</p>
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      <CreateOfferModal isOpen={showOfferModal} onClose={() => setShowOfferModal(false)} />
+      <CreateOfferModal
+        isOpen={showOfferModal}
+        onClose={() => setShowOfferModal(false)}
+        businessId={myBusiness._id || myBusiness.id}
+        onCreated={handleBusinessUpdated}
+      />
+      <CreateBusinessModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreated={handleBusinessCreated}
+      />
+      {myBusiness && (
+        <EditBusinessModal
+          isOpen={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          business={myBusiness}
+          onUpdated={handleBusinessUpdated}
+        />
+      )}
     </div>
   );
 }
