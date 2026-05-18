@@ -5,6 +5,7 @@ const offerSchema = new mongoose.Schema(
     title:       { type: String, required: true },
     description: { type: String, default: "" },
     discount:    { type: String, default: "" },
+    imageUrl:    { type: String, default: "" },
     validUntil:  { type: Date },
     isActive:    { type: Boolean, default: true },
   },
@@ -42,6 +43,7 @@ const businessSchema = new mongoose.Schema(
     phone:    { type: String, default: "" },
     distance: { type: String, default: "" },
     offers:   [offerSchema],
+    members:  [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   },
   { timestamps: true }
 );

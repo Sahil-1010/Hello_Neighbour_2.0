@@ -22,6 +22,8 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!form.username.trim()) { setError("Username is required."); return; }
+    if (!form.password)         { setError("Password is required."); return; }
     setError("");
     setLoading(true);
     try {

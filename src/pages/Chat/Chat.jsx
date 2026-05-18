@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 
 const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='20' fill='%23e2e8f0'/%3E%3Ccircle cx='20' cy='16' r='7' fill='%2394a3b8'/%3E%3Cellipse cx='20' cy='34' rx='12' ry='9' fill='%2394a3b8'/%3E%3C/svg%3E";
-import { Send, Search, MoreVertical, ArrowLeft, Image, Smile, ShieldAlert, X } from "lucide-react";
+import { Send, Search, MoreVertical, ArrowLeft, Image, Smile, ShieldAlert, X, ShieldOff, BellOff, ShoppingBag } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 
 const roleColors = {
@@ -15,7 +15,7 @@ const roleColors = {
 // Shown once per browser session via sessionStorage. User must acknowledge.
 function PrivacyModal({ onClose }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="relative w-full max-w-md bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6">
         <div className="flex items-center gap-3 mb-4">
@@ -108,12 +108,17 @@ function MessageBubble({ message, isOwn, prevOwn }) {
   return (
     <div className={`flex items-end gap-2 ${isOwn ? "flex-row-reverse" : "flex-row"} ${prevOwn === isOwn ? "mt-1" : "mt-4"}`}>
       {!isOwn && !prevOwn && <div className="w-8 flex-shrink-0" />}
-      <div className={`max-w-[70%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
+      <div className={`max-w-[70%] rounded-2xl text-sm leading-relaxed ${
         isOwn
           ? "bg-emerald-500 text-white rounded-br-md"
           : "bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-md shadow-sm border border-gray-100 dark:border-gray-600"
       }`}>
-        {message.text}
+        {message.orderId && (
+          <div className={`px-3 pt-2 pb-1 text-[10px] font-medium flex items-center gap-1 opacity-80 ${isOwn ? "text-emerald-100" : "text-emerald-600 dark:text-emerald-400"}`}>
+            <ShoppingBag size={10} /> Regarding Order #{message.orderId.slice(-6).toUpperCase()}
+          </div>
+        )}
+        <div className="px-4 py-2.5">{message.text}</div>
       </div>
       <span className={`text-[10px] text-gray-400 dark:text-gray-500 flex-shrink-0 ${isOwn ? "text-right" : ""}`}>
         {message.timestamp}
@@ -123,7 +128,7 @@ function MessageBubble({ message, isOwn, prevOwn }) {
 }
 
 export default function Chat() {
-  const { user, conversations, messages, sendMessage, loadMessages, startConversation } = useApp();
+  const { user, conversations, messages, sendMessage, loadMessages, startConversation, blockUser, muteUser, addToast } = useApp();
   const [searchParams] = useSearchParams();
   const [activeConv, setActiveConv] = useState(null);
   const [inputText, setInputText] = useState("");
@@ -131,6 +136,7 @@ export default function Chat() {
   const [showConvList, setShowConvList] = useState(true);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showBanner, setShowBanner] = useState(true);
+  const [showChatMenu, setShowChatMenu] = useState(false);
   const messagesEndRef = useRef(null);
 
   // Show privacy modal once per browser session
@@ -172,12 +178,14 @@ export default function Chat() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeMessages]);
 
+  const pendingOrderId = searchParams.get("orderId") || null;
+
   const handleSend = async (e) => {
     e.preventDefault();
     if (!inputText.trim() || !activeConv) return;
     const text = inputText.trim();
     setInputText("");
-    await sendMessage(activeConv.id, text);
+    await sendMessage(activeConv.id, text, pendingOrderId);
   };
 
   const handleSelectConv = (conv) => {
@@ -251,8 +259,44 @@ export default function Chat() {
                   </span>
                 </div>
               </div>
-              <div className="flex items-center gap-1">
-                <button className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><MoreVertical size={18} /></button>
+              <div className="flex items-center gap-1 relative">
+                <button
+                  onClick={() => setShowChatMenu((v) => !v)}
+                  className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <MoreVertical size={18} />
+                </button>
+                {showChatMenu && (
+                  <>
+                    <div className="fixed inset-0 z-[9998]" onClick={() => setShowChatMenu(false)} />
+                    <div className="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 py-1 z-[9999]">
+                      <button
+                        onClick={async () => {
+                          setShowChatMenu(false);
+                          const otherId = activeConv?.user?._id || activeConv?.user?.id;
+                          if (!otherId) return;
+                          try { await blockUser(otherId); addToast({ type: "success", message: "User blocked." }); }
+                          catch { addToast({ type: "error", message: "Could not block user" }); }
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        <ShieldOff size={14} /> Block user
+                      </button>
+                      <button
+                        onClick={async () => {
+                          setShowChatMenu(false);
+                          const otherId = activeConv?.user?._id || activeConv?.user?.id;
+                          if (!otherId) return;
+                          try { await muteUser(otherId); addToast({ type: "success", message: "User muted." }); }
+                          catch { addToast({ type: "error", message: "Could not mute user" }); }
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        <BellOff size={14} /> Mute user
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 

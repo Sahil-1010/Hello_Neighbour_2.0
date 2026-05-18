@@ -79,10 +79,11 @@ router.get("/conversations/:id", auth, async (req, res) => {
     const messages = await Message.find({ conversationId: req.params.id }).sort({ createdAt: 1 }).limit(100);
     await Conversation.findByIdAndUpdate(req.params.id, { $set: { [`unreadCount.${req.user.id}`]: 0 } });
     res.json(messages.map((m) => ({
-      id: m._id.toString(),
-      senderId: m.senderId.toString(),
-      text: m.text,
+      id:        m._id.toString(),
+      senderId:  m.senderId.toString(),
+      text:      m.text,
       timestamp: timeAgo(m.createdAt),
+      orderId:   m.orderId ? m.orderId.toString() : null,
     })));
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -91,13 +92,16 @@ router.get("/conversations/:id", auth, async (req, res) => {
 
 router.post("/conversations/:id", auth, async (req, res) => {
   try {
+    const { text, orderId } = req.body;
     const conv = await Conversation.findById(req.params.id);
     if (!conv) return res.status(404).json({ message: "Conversation not found" });
-    const message = await Message.create({ conversationId: req.params.id, senderId: req.user.id, text: req.body.text });
+    const msgData = { conversationId: req.params.id, senderId: req.user.id, text };
+    if (orderId) msgData.orderId = orderId;
+    const message = await Message.create(msgData);
     const recipientId = conv.participants.find((p) => p.toString() !== req.user.id);
     const prevUnread = conv.unreadCount?.get(recipientId.toString()) || 0;
     await Conversation.findByIdAndUpdate(req.params.id, {
-      lastMessage: req.body.text,
+      lastMessage: text,
       lastMessageAt: new Date(),
       $set: { [`unreadCount.${recipientId}`]: prevUnread + 1 },
     });
@@ -112,7 +116,7 @@ router.post("/conversations/:id", auth, async (req, res) => {
       link:    "/chat",
     });
 
-    res.status(201).json({ id: message._id.toString(), senderId: message.senderId.toString(), text: message.text, timestamp: "Just now" });
+    res.status(201).json({ id: message._id.toString(), senderId: message.senderId.toString(), text: message.text, timestamp: "Just now", orderId: message.orderId?.toString() || null });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

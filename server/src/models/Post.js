@@ -21,7 +21,8 @@ const postSchema = new mongoose.Schema(
   {
     author:          { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     content:         { type: String, required: true },
-    type:            { type: String, enum: ["general", "warning", "help", "offer", "order"], default: "general" },
+    type:            { type: String, enum: ["general", "warning", "help", "offer"], default: "general" },
+    reportCount:     { type: Number, default: 0 },
     orderCategories: [String],
     orderBudget:     { type: String, default: "" },
     orderItems:      [String],
@@ -35,6 +36,9 @@ const postSchema = new mongoose.Schema(
       type:        { type: String, enum: ["Point"] },
       coordinates: [Number], // [longitude, latitude]
     },
+
+    editCount:   { type: Number, default: 0 },
+    isEdited:    { type: Boolean, default: false },
 
     likes:       { type: Number, default: 0 },
     likedBy:     [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],

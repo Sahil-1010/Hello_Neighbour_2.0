@@ -50,11 +50,15 @@ router.get("/", auth, async (req, res) => {
     }
 
     res.json(
-      neighborhoods.map((n) => ({
-        ...n.toObject(),
-        id: n._id.toString(),
-        memberCount: n.members.length,
-      }))
+      neighborhoods.map((n) => {
+        const obj = { ...n.toObject(), id: n._id.toString(), memberCount: n.members.length };
+        // Include distance from user when coordinates were provided
+        if (hasGeo && n.center?.coordinates?.length === 2) {
+          const [nLng, nLat] = n.center.coordinates;
+          obj.distance = Math.round(haversine(parsedLat, parsedLng, nLat, nLng));
+        }
+        return obj;
+      })
     );
   } catch (err) {
     res.status(500).json({ message: err.message });

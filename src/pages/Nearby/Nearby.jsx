@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
-import { MapPin, MessageCircle, Search, Users, Wrench, Globe, Star } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { MapPin, MessageCircle, Search, Users, Wrench, Globe, Star, UserPlus, Check, Clock } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
 import { workerCategories } from "../../data/mockData";
+import "leaflet/dist/leaflet.css";
 
 const tabs = [
   { id: "people", label: "People", icon: Users },
@@ -15,40 +16,80 @@ const roleColors = {
   business: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
 };
 
-function MapView() {
-  const pins = [
-    { id: 1, x: 50, y: 50, isYou: true, color: "bg-emerald-500" },
-    { id: 2, x: 30, y: 35, color: "bg-amber-500", label: "Mike" },
-    { id: 3, x: 65, y: 30, color: "bg-purple-500", label: "Emma" },
-    { id: 4, x: 70, y: 60, color: "bg-amber-500", label: "James" },
-    { id: 5, x: 35, y: 65, color: "bg-blue-500", label: "Lisa" },
-    { id: 6, x: 78, y: 45, color: "bg-purple-500", label: "Carlos" },
-    { id: 7, x: 25, y: 55, color: "bg-amber-500", label: "Priya" },
-  ];
-  return (
-    <div className="relative h-48 sm:h-56 bg-gradient-to-br from-green-50 dark:from-gray-800 via-emerald-50 dark:via-gray-800 to-teal-50 dark:to-gray-700 rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-700">
-      <div className="absolute inset-0 opacity-20 dark:opacity-10">
-        <div className="absolute top-1/2 left-0 right-0 h-px bg-gray-500" />
-        <div className="absolute left-1/3 top-0 bottom-0 w-px bg-gray-500" />
-        <div className="absolute left-2/3 top-0 bottom-0 w-px bg-gray-500" />
-        <div className="absolute top-1/3 left-0 right-0 h-px bg-gray-400" />
-        <div className="absolute top-2/3 left-0 right-0 h-px bg-gray-400" />
-      </div>
-      <div className="absolute rounded-full border-2 border-dashed border-emerald-400 dark:border-emerald-600 bg-emerald-400/10" style={{ width: "80%", height: "80%", left: "10%", top: "10%" }} />
-      {pins.map((pin) => (
-        <div key={pin.id} className="absolute transform -translate-x-1/2 -translate-y-1/2 group cursor-pointer" style={{ left: `${pin.x}%`, top: `${pin.y}%` }}>
-          <div className={`${pin.color} ${pin.isYou ? "w-5 h-5 ring-4 ring-emerald-200 dark:ring-emerald-900" : "w-3.5 h-3.5"} rounded-full shadow-md transition-transform group-hover:scale-125`} />
-          {pin.isYou && (
-            <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-emerald-500 text-white text-[10px] px-2 py-0.5 rounded-full whitespace-nowrap shadow-sm">You</div>
-          )}
-          {!pin.isYou && pin.label && (
-            <div className="absolute -top-5 left-1/2 -translate-x-1/2 bg-white/90 dark:bg-gray-800/90 text-gray-700 dark:text-gray-300 text-[10px] px-1.5 py-0.5 rounded-full whitespace-nowrap shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
-              {pin.label}
-            </div>
-          )}
+function MapView({ user, nearbyUsers, myNeighborhood }) {
+  const containerRef = useRef(null);
+  const mapRef = useRef(null);
+
+  useEffect(() => {
+    const coords = user?.geoLocation?.coordinates; // [lng, lat]
+    const hasCoords = coords?.length === 2 && (coords[0] !== 0 || coords[1] !== 0);
+    if (!hasCoords || !containerRef.current) return;
+
+    let cancelled = false;
+    const lat = coords[1];
+    const lng = coords[0];
+
+    import("leaflet").then(({ default: L }) => {
+      if (cancelled || mapRef.current || !containerRef.current) return;
+
+      const map = L.map(containerRef.current, { center: [lat, lng], zoom: 15, zoomControl: true });
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      }).addTo(map);
+
+      L.circleMarker([lat, lng], {
+        radius: 12, fillColor: "#10b981", color: "#fff", weight: 2, opacity: 1, fillOpacity: 0.9,
+      }).addTo(map).bindPopup("<b>You</b>");
+
+      nearbyUsers.forEach((u) => {
+        const uc = u.geoLocation?.coordinates;
+        if (!uc?.length || (uc[0] === 0 && uc[1] === 0)) return;
+        const color = u.role === "worker" ? "#f59e0b" : u.role === "business" ? "#8b5cf6" : "#3b82f6";
+        L.circleMarker([uc[1], uc[0]], {
+          radius: 8, fillColor: color, color: "#fff", weight: 2, opacity: 1, fillOpacity: 0.8,
+        }).addTo(map).bindPopup(`<b>${u.name}</b><br/><small>${u.role}</small>`);
+      });
+
+      // Draw neighborhood boundary circle
+      if (myNeighborhood?.center?.coordinates?.length === 2) {
+        const [nLng, nLat] = myNeighborhood.center.coordinates;
+        L.circle([nLat, nLng], {
+          radius: myNeighborhood.radius || 5000,
+          fillColor: "#10b981",
+          fillOpacity: 0.05,
+          color: "#10b981",
+          weight: 2,
+          dashArray: "6 4",
+        }).addTo(map).bindPopup(`<b>${myNeighborhood.name}</b>`);
+      }
+
+      mapRef.current = map;
+    });
+
+    return () => {
+      cancelled = true;
+      if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const coords = user?.geoLocation?.coordinates;
+  const hasCoords = coords?.length === 2 && (coords[0] !== 0 || coords[1] !== 0);
+
+  if (!hasCoords) {
+    return (
+      <div className="relative h-48 sm:h-56 bg-gradient-to-br from-green-50 dark:from-gray-800 via-emerald-50 dark:via-gray-800 to-teal-50 dark:to-gray-700 rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-700 flex items-center justify-center">
+        <div className="text-center">
+          <MapPin size={32} className="text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+          <p className="text-xs text-gray-400 dark:text-gray-500">Enable location during onboarding to see the live map</p>
         </div>
-      ))}
-      <div className="absolute bottom-3 right-3 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-sm">
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative z-0 rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-700" style={{ height: "220px" }}>
+      <div ref={containerRef} className="w-full h-full" />
+      <div className="absolute bottom-3 right-3 z-[1000] bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-sm pointer-events-none">
         <div className="flex items-center gap-3 text-[10px] text-gray-600 dark:text-gray-400">
           <span className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-full bg-amber-500" />Worker</span>
           <span className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-full bg-purple-500" />Business</span>
@@ -60,6 +101,29 @@ function MapView() {
 }
 
 function PersonCard({ person }) {
+  const { user, sendConnectionRequest, connectUser } = useApp();
+  const [connState, setConnState] = useState(() => {
+    if (!user) return "none";
+    const isConnected = (user.connectionList || []).some((id) => id.toString() === person.id || id === person.id);
+    if (isConnected) return "connected";
+    const hasRequested = (user.connectionRequestsSent || []).some((id) => id.toString() === person.id || id === person.id);
+    if (hasRequested) return "requested";
+    return "none";
+  });
+  const [loading, setLoading] = useState(false);
+
+  const handleConnect = async () => {
+    if (loading || connState === "connected") return;
+    setLoading(true);
+    try {
+      if (connState === "none") {
+        await sendConnectionRequest(person.id || person._id);
+        setConnState("requested");
+      }
+    } catch {}
+    setLoading(false);
+  };
+
   return (
     <div className="card p-4 hover:shadow-card-hover transition-all duration-200">
       <div className="flex items-start gap-3">
@@ -75,7 +139,7 @@ function PersonCard({ person }) {
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <div>
+            <div className="min-w-0">
               <Link to={`/profile/${person.id}`} className="font-semibold text-gray-900 dark:text-white text-sm hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
                 {person.businessName || person.name}
               </Link>
@@ -88,12 +152,30 @@ function PersonCard({ person }) {
                 )}
               </div>
             </div>
-            <Link
-              to={`/chat?userId=${person.id || person._id}`}
-              className="p-2 rounded-xl text-gray-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 hover:text-emerald-600 dark:hover:text-emerald-400 border border-gray-200 dark:border-gray-600 hover:border-emerald-200 dark:hover:border-emerald-800 transition-all flex-shrink-0"
-            >
-              <MessageCircle size={15} />
-            </Link>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {person.id !== user?.id && (
+                <button
+                  onClick={handleConnect}
+                  disabled={loading || connState === "connected" || connState === "requested"}
+                  title={connState === "connected" ? "Connected" : connState === "requested" ? "Request sent" : "Connect"}
+                  className={`p-1.5 rounded-xl border transition-all text-xs ${
+                    connState === "connected"
+                      ? "border-emerald-200 dark:border-emerald-800 text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20"
+                      : connState === "requested"
+                      ? "border-amber-200 dark:border-amber-800 text-amber-500 bg-amber-50 dark:bg-amber-900/20"
+                      : "border-gray-200 dark:border-gray-600 text-gray-400 hover:text-emerald-600 hover:border-emerald-200 dark:hover:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+                  }`}
+                >
+                  {connState === "connected" ? <Check size={13} /> : connState === "requested" ? <Clock size={13} /> : <UserPlus size={13} />}
+                </button>
+              )}
+              <Link
+                to={`/chat?userId=${person.id || person._id}`}
+                className="p-1.5 rounded-xl text-gray-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 hover:text-emerald-600 dark:hover:text-emerald-400 border border-gray-200 dark:border-gray-600 hover:border-emerald-200 dark:hover:border-emerald-800 transition-all flex-shrink-0"
+              >
+                <MessageCircle size={14} />
+              </Link>
+            </div>
           </div>
           {person.bio && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 line-clamp-2 leading-relaxed">{person.bio}</p>}
           {person.skills?.length > 0 && (
@@ -119,14 +201,19 @@ function PersonCard({ person }) {
 
 
 export default function Nearby() {
-  const { currentNeighborhood, nearbyUsers, neighborhoodsList, fetchNeighborhoods } = useApp();
+  const { currentNeighborhood, nearbyUsers, neighborhoodsList, fetchNeighborhoods, user } = useApp();
   const [activeTab, setActiveTab] = useState("people");
   const [activeCategory, setActiveCategory] = useState("All");
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    fetchNeighborhoods().catch(() => {});
+    const coords = user?.geoLocation?.coordinates; // [lng, lat]
+    const hasCoords = coords?.length === 2 && (coords[0] !== 0 || coords[1] !== 0);
+    const opts = hasCoords ? { lat: coords[1], lng: coords[0] } : {};
+    fetchNeighborhoods(opts).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const myNeighborhood = neighborhoodsList.find((n) => n.name === currentNeighborhood) || null;
 
   const otherNeighborhoods = neighborhoodsList.filter(
     (n) => n.name !== currentNeighborhood
@@ -151,7 +238,7 @@ export default function Nearby() {
         </p>
       </div>
 
-      <MapView />
+      <MapView user={user} nearbyUsers={nearbyUsers} myNeighborhood={myNeighborhood} />
 
       <div className="relative">
         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -228,9 +315,18 @@ export default function Nearby() {
                 </div>
                 <div className="min-w-0">
                   <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{n.name}</p>
-                  {n.memberCount > 0 && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{n.memberCount} members</p>
-                  )}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {n.memberCount > 0 && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{n.memberCount} members</p>
+                    )}
+                    {n.distance != null && (
+                      <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                        {n.distance < 1000
+                          ? `${Math.round(n.distance)}m away`
+                          : `${(n.distance / 1000).toFixed(1)}km away`}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}

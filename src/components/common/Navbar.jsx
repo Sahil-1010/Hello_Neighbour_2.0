@@ -4,14 +4,15 @@ const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/
 import { Link, useNavigate } from "react-router-dom";
 import {
   Bell, Search, MapPin, ChevronDown, LogOut, User, Settings,
-  Moon, Sun, Building2, Check,
+  Moon, Sun, Building2, Check, Users, Wrench, Store, Home as HomeIcon,
 } from "lucide-react";
+import { CategoryIcon } from "../../utils/categoryIcons";
 import { useApp } from "../../context/AppContext";
 
 const roleLabels = {
-  normal: { label: "Community Member", emoji: "👋", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" },
-  worker: { label: "Worker", emoji: "🔧", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300" },
-  business: { label: "Business Owner", emoji: "🏪", color: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300" },
+  normal:   { label: "Community Member", icon: Users,  color: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" },
+  worker:   { label: "Worker",           icon: Wrench, color: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300" },
+  business: { label: "Business Owner",   icon: Store,  color: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300" },
 };
 
 function NeighborhoodDropdown({ onClose }) {
@@ -47,7 +48,9 @@ function NeighborhoodDropdown({ onClose }) {
               onClick={() => { switchNeighborhood(n.id, n.name); onClose(); }}
               className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             >
-              <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center text-sm">🏘️</div>
+              <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center">
+                  <HomeIcon size={15} className="text-emerald-600 dark:text-emerald-400" />
+                </div>
               <p className={`flex-1 text-left text-sm font-medium ${isActive ? "text-emerald-600 dark:text-emerald-400" : "text-gray-800 dark:text-gray-200"}`}>
                 {n.name}
               </p>
@@ -63,28 +66,28 @@ function NeighborhoodDropdown({ onClose }) {
 function RoleSwitcher({ onClose }) {
   const { user, switchRole } = useApp();
   const roles = [
-    { value: "normal", label: "Community Member", emoji: "👋" },
-    { value: "worker", label: "Worker", emoji: "🔧" },
-    { value: "business", label: "Business Owner", emoji: "🏪" },
+    { value: "normal",   label: "Community Member", icon: Users },
+    { value: "worker",   label: "Worker",           icon: Wrench },
+    { value: "business", label: "Business Owner",   icon: Store },
   ];
   return (
     <div className="border-t border-gray-100 dark:border-gray-700 pt-2 mt-1">
       <p className="px-4 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">
         Switch Role
       </p>
-      {roles.map((r) => (
+      {roles.map(({ value, label, icon: RoleIcon }) => (
         <button
-          key={r.value}
-          onClick={() => { switchRole(r.value); onClose(); }}
+          key={value}
+          onClick={() => { switchRole(value); onClose(); }}
           className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-            user?.role === r.value
+            user?.role === value
               ? "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20"
               : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
           }`}
         >
-          <span>{r.emoji}</span>
-          {r.label}
-          {user?.role === r.value && <Check size={14} className="ml-auto" />}
+          <RoleIcon size={15} className={user?.role === value ? "text-emerald-500" : "text-gray-400"} />
+          {label}
+          {user?.role === value && <Check size={14} className="ml-auto" />}
         </button>
       ))}
     </div>
@@ -152,7 +155,9 @@ function SearchBar({ isMobile }) {
               {results.businesses.map((b) => (
                 <button key={b.id} onClick={() => { navigate(`/businesses`); setOpen(false); setQuery(""); }}
                   className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-left">
-                  <span className="text-xl">{b.categoryIcon}</span>
+                  <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center flex-shrink-0">
+                    <CategoryIcon category={b.category} size={14} className="text-emerald-600 dark:text-emerald-400" />
+                  </div>
                   <div>
                     <p className="text-sm font-medium text-gray-900 dark:text-white">{b.name}</p>
                     <p className="text-xs text-gray-400">{b.category}</p>
@@ -198,9 +203,7 @@ export default function Navbar() {
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center gap-3">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2 flex-shrink-0">
-          <div className="w-8 h-8 bg-emerald-500 rounded-xl flex items-center justify-center">
-            <span className="text-white text-base">🏘️</span>
-          </div>
+          <img src="/favicon.svg" alt="Hello Neighbour" className="w-8 h-8 rounded-xl" />
           <span className="font-bold text-gray-900 dark:text-white text-lg hidden sm:block">
             Hello<span className="text-emerald-500">Neighbour</span>
           </span>
@@ -281,8 +284,8 @@ export default function Navbar() {
                   <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
                     <p className="font-semibold text-gray-900 dark:text-white text-sm">{user?.name}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{user?.contact}</p>
-                    <span className={`badge mt-1.5 ${rl.color}`}>
-                      {rl.emoji} {rl.label}
+                    <span className={`badge mt-1.5 inline-flex items-center gap-1 ${rl.color}`}>
+                      <rl.icon size={11} /> {rl.label}
                     </span>
                   </div>
 

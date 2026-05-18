@@ -2,35 +2,22 @@ const router = require("express").Router();
 const Business = require("../models/Business");
 const User = require("../models/User");
 const { auth, requireRole } = require("../middleware/auth");
+const { createBulkNotifications } = require("../services/notification");
 
-// GET /api/businesses?neighborhood=X&category=X&lat=X&lng=X
+// GET /api/businesses?neighborhood=X&category=X&owner=X
 router.get("/", auth, async (req, res) => {
   try {
-    const { neighborhood, category, lat, lng } = req.query;
+    const { neighborhood, category, owner } = req.query;
     const filter = {};
 
-    const parsedLat = parseFloat(lat);
-    const parsedLng = parseFloat(lng);
-    const hasGeo =
-      !isNaN(parsedLat) && !isNaN(parsedLng) &&
-      (parsedLat !== 0 || parsedLng !== 0);
-
-    if (hasGeo) {
-      filter.geoLocation = {
-        $near: {
-          $geometry: { type: "Point", coordinates: [parsedLng, parsedLat] },
-          $maxDistance: 5000,
-        },
-      };
+    if (owner) {
+      filter.owner = owner; // fetch by specific owner (for Profile page)
     } else if (neighborhood) {
       filter.neighborhood = neighborhood;
     }
-
     if (category && category !== "All") filter.category = category;
 
-    // $near returns results pre-sorted by distance; skip manual sort when geo is active
-    const query = Business.find(filter).populate("owner", "name avatar").limit(100);
-    if (!hasGeo) query.sort({ createdAt: -1 });
+    const query = Business.find(filter).populate("owner", "name username avatar").limit(100).sort({ createdAt: -1 });
 
     const businesses = await query;
     res.json(businesses.map((b) => ({ ...b.toObject(), id: b._id.toString() })));
@@ -45,7 +32,7 @@ router.get("/", auth, async (req, res) => {
 router.get("/my", auth, async (req, res) => {
   try {
     const businesses = await Business.find({ owner: req.user.id })
-      .populate("owner", "name avatar")
+      .populate("owner", "name username avatar")
       .sort({ createdAt: -1 });
     res.json(businesses.map((b) => ({ ...b.toObject(), id: b._id.toString() })));
   } catch (err) {
@@ -80,6 +67,7 @@ router.get("/offers", auth, async (req, res) => {
             title: offer.title,
             description: offer.description || "",
             discount: offer.discount || "",
+            imageUrl: offer.imageUrl || "",
             validUntil: offer.validUntil || null,
             createdAt: offer.createdAt,
           });
@@ -95,7 +83,7 @@ router.get("/offers", auth, async (req, res) => {
 // GET /api/businesses/:id
 router.get("/:id", auth, async (req, res) => {
   try {
-    const business = await Business.findById(req.params.id).populate("owner", "name avatar");
+    const business = await Business.findById(req.params.id).populate("owner", "name username avatar");
     if (!business) return res.status(404).json({ message: "Business not found" });
     res.json({ ...business.toObject(), id: business._id.toString() });
   } catch (err) {
@@ -153,6 +141,30 @@ router.post("/", auth, requireRole("business"), async (req, res) => {
     }
 
     const business = await Business.create(businessData);
+
+    // Notify all users in the same neighborhood (non-blocking)
+    const orConds = [];
+    if (user.neighborhoodId) orConds.push({ neighborhoodId: user.neighborhoodId });
+    if (user.neighborhood) orConds.push({ neighborhood: user.neighborhood });
+    if (orConds.length > 0) {
+      User.find({ _id: { $ne: req.user.id }, $or: orConds })
+        .select("_id")
+        .lean()
+        .then((neighbors) => {
+          if (neighbors.length > 0) {
+            createBulkNotifications(
+              neighbors.map((n) => n._id),
+              {
+                type:    "new_business",
+                message: `New business "${business.name}" was added in your neighborhood!`,
+                link:    `/businesses/${business._id}`,
+              }
+            );
+          }
+        })
+        .catch(() => {});
+    }
+
     res.status(201).json({ ...business.toObject(), id: business._id.toString() });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -202,10 +214,10 @@ router.post("/:id/offers", auth, requireRole("business"), async (req, res) => {
     if (business.owner.toString() !== req.user.id)
       return res.status(403).json({ message: "Not authorized" });
 
-    const { title, description, discount, validUntil } = req.body;
+    const { title, description, discount, validUntil, imageUrl } = req.body;
     if (!title) return res.status(400).json({ message: "Offer title is required" });
 
-    business.offers.push({ title, description, discount, validUntil, isActive: true });
+    business.offers.push({ title, description, discount, validUntil, isActive: true, imageUrl: imageUrl || "" });
     await business.save();
 
     res.status(201).json({ ...business.toObject(), id: business._id.toString() });
@@ -246,6 +258,27 @@ router.delete("/:id/offers/:offerId", auth, requireRole("business"), async (req,
     await business.save();
 
     res.json({ ...business.toObject(), id: business._id.toString() });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/businesses/:id/connect — toggle follow/membership
+router.post("/:id/connect", auth, async (req, res) => {
+  try {
+    const business = await Business.findById(req.params.id);
+    if (!business) return res.status(404).json({ message: "Business not found" });
+
+    const memberStrs = (business.members || []).map((id) => id.toString());
+    const isConnected = memberStrs.includes(req.user.id);
+
+    if (isConnected) {
+      await Business.findByIdAndUpdate(req.params.id, { $pull: { members: req.user.id } });
+      return res.json({ connected: false, memberCount: memberStrs.length - 1 });
+    }
+
+    await Business.findByIdAndUpdate(req.params.id, { $addToSet: { members: req.user.id } });
+    res.json({ connected: true, memberCount: memberStrs.length + 1 });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

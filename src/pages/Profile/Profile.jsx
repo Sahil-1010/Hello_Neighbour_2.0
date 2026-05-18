@@ -2,9 +2,11 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Star, MapPin, MessageCircle, UserPlus, Briefcase, FileText, Award,
-  Calendar, Clock, Edit2, Check, X, Loader,
+  Calendar, Clock, Edit2, Check, X, Loader, ShieldOff, BellOff, Flag, MoreVertical, Building2,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
+import { CategoryIcon } from "../../utils/categoryIcons";
 import { api } from "../../services/api";
 import PostCard from "../../components/common/PostCard";
 import Modal from "../../components/common/Modal";
@@ -147,7 +149,7 @@ function EditProfileModal({ isOpen, onClose, profileUser }) {
 export default function Profile() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, posts, startConversation, fetchUserById, addToast, connectUser } = useApp();
+  const { user, posts, startConversation, fetchUserById, addToast, connectUser, blockUser, muteUser, reportContent } = useApp();
 
   const isOwnProfile = id === user?.id;
 
@@ -157,18 +159,24 @@ export default function Profile() {
   const [startingChat, setStartingChat] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [userBusinesses, setUserBusinesses] = useState([]);
 
   // When viewing own profile, keep in sync with global user state
   useEffect(() => {
     if (isOwnProfile) {
       setProfileUser(user);
-      return;
+    } else {
+      setLoading(true);
+      fetchUserById(id)
+        .then((data) => setProfileUser(data))
+        .catch(() => addToast({ type: "error", message: "Could not load profile" }))
+        .finally(() => setLoading(false));
     }
-    setLoading(true);
-    fetchUserById(id)
-      .then((data) => setProfileUser(data))
-      .catch(() => addToast({ type: "error", message: "Could not load profile" }))
-      .finally(() => setLoading(false));
+    // Fetch businesses owned by this user regardless of own/other profile
+    api.get(`/businesses?owner=${id}`).then(setUserBusinesses).catch(() => {});
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep own-profile view up to date when global user changes
@@ -200,6 +208,36 @@ export default function Profile() {
     } finally {
       setConnecting(false);
     }
+  };
+
+  const handleBlock = async () => {
+    setShowMoreMenu(false);
+    try {
+      await blockUser(id);
+      addToast({ type: "success", message: "User blocked." });
+    } catch (err) {
+      addToast({ type: "error", message: err.message || "Could not block user" });
+    }
+  };
+
+  const handleMute = async () => {
+    setShowMoreMenu(false);
+    try {
+      await muteUser(id);
+      addToast({ type: "success", message: "User muted." });
+    } catch (err) {
+      addToast({ type: "error", message: err.message || "Could not mute user" });
+    }
+  };
+
+  const handleReport = async () => {
+    if (!reportReason) return;
+    try {
+      await reportContent({ targetId: id, type: "user", reason: reportReason });
+    } catch {}
+    setShowReportModal(false);
+    setReportReason("");
+    addToast({ type: "success", message: "User reported." });
   };
 
   const handleMessage = async () => {
@@ -281,7 +319,7 @@ export default function Profile() {
                 <Edit2 size={14} /> Edit Profile
               </button>
             ) : (
-              <div className="flex gap-2 mt-12">
+              <div className="flex gap-2 mt-12 flex-wrap">
                 <button
                   onClick={handleMessage}
                   disabled={startingChat}
@@ -298,6 +336,40 @@ export default function Profile() {
                   {connecting ? <Loader size={14} className="animate-spin" /> : <UserPlus size={15} />}
                   {isConnected ? "Connected" : "Connect"}
                 </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowMoreMenu((v) => !v)}
+                    className="p-2 btn-secondary text-sm"
+                    title="More options"
+                  >
+                    <MoreVertical size={15} />
+                  </button>
+                  {showMoreMenu && (
+                    <>
+                      <div className="fixed inset-0 z-[9998]" onClick={() => setShowMoreMenu(false)} />
+                      <div className="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 py-1 z-[9999]">
+                        <button
+                          onClick={handleBlock}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          <ShieldOff size={14} /> Block user
+                        </button>
+                        <button
+                          onClick={handleMute}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          <BellOff size={14} /> Mute user
+                        </button>
+                        <button
+                          onClick={() => { setShowMoreMenu(false); setShowReportModal(true); }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                        >
+                          <Flag size={14} /> Report user
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -389,30 +461,40 @@ export default function Profile() {
         </div>
       )}
 
-      {/* Business Info */}
-      {profileUser.role === "business" && (
+      {/* Business Listings */}
+      {userBusinesses.length > 0 && (
         <div className="card p-5">
           <h2 className="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <Award size={18} className="text-emerald-500" />
-            Business Details
+            <Building2 size={18} className="text-emerald-500" />
+            Business Profiles
           </h2>
           <div className="space-y-3">
-            {profileUser.businessName && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{profileUser.businessName}</span>
-              </div>
-            )}
-            {profileUser.category && (
-              <div className="flex items-center gap-2">
-                <span className="badge bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400">
-                  {profileUser.category}
-                </span>
-              </div>
-            )}
-            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-              <Clock size={14} className="text-gray-400 dark:text-gray-500" />
-              <span>Mon–Sat: 8 AM – 8 PM</span>
-            </div>
+            {userBusinesses.map((biz) => (
+              <Link
+                key={biz.id || biz._id}
+                to={`/businesses/${biz.id || biz._id}`}
+                className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+              >
+                <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0">
+                  {biz.image ? (
+                    <img src={biz.image} alt={biz.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                      <CategoryIcon category={biz.category} size={18} className="text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-900 dark:text-white text-sm truncate">{biz.name}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{biz.category}</p>
+                </div>
+                {biz.rating > 0 && (
+                  <div className="flex items-center gap-1 text-xs text-amber-500 flex-shrink-0">
+                    <Star size={11} className="fill-amber-400" /> {biz.rating}
+                  </div>
+                )}
+              </Link>
+            ))}
           </div>
         </div>
       )}
@@ -461,6 +543,33 @@ export default function Profile() {
           onClose={() => setShowEdit(false)}
           profileUser={profileUser}
         />
+      )}
+
+      {/* Report user modal */}
+      {showReportModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowReportModal(false)} />
+          <div className="relative w-full max-w-sm bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Report User</h3>
+              <button onClick={() => setShowReportModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Select a reason for reporting:</p>
+            <div className="space-y-2 mb-4">
+              {["Harassment", "Spam", "Fake profile", "Inappropriate content", "Scam", "Other"].map((r) => (
+                <label key={r} className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="user-report-reason" value={r} checked={reportReason === r} onChange={() => setReportReason(r)} className="accent-emerald-500" />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">{r}</span>
+                </label>
+              ))}
+            </div>
+            <button onClick={handleReport} disabled={!reportReason} className="btn-primary w-full py-2.5 disabled:opacity-50 disabled:cursor-not-allowed">
+              Submit Report
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

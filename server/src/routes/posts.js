@@ -157,6 +157,31 @@ router.post("/:id/comments", auth, async (req, res) => {
   }
 });
 
+// PUT /:id — edit post content (author only, max 3 edits)
+router.put("/:id", auth, async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: "Post not found" });
+    if (post.author.toString() !== req.user.id)
+      return res.status(403).json({ message: "Not authorized" });
+    if (post.editCount >= 3)
+      return res.status(400).json({ message: "Maximum edits (3) reached" });
+
+    const content = req.body.content?.trim();
+    if (!content) return res.status(400).json({ message: "Content is required" });
+
+    post.content = content;
+    post.editCount += 1;
+    post.isEdited = true;
+    await post.save();
+
+    const populated = await post.populate("author", "name avatar role businessName location isOnline");
+    res.json(formatPost(populated, req.user.id));
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 router.delete("/:id", auth, async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
@@ -185,11 +210,13 @@ function formatPost(post, userId) {
   return {
     ...obj,
     author,
-    id: obj._id?.toString(),
+    id:         obj._id?.toString(),
     isLiked:    obj.likedBy?.some((id) => id.toString() === userId),
     isDisliked: obj.dislikedBy?.some((id) => id.toString() === userId),
     comments:   obj.commentList?.length || 0,
     timestamp:  timeAgo(obj.createdAt),
+    isEdited:   obj.isEdited || false,
+    editCount:  obj.editCount || 0,
   };
 }
 

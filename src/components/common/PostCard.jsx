@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Heart, ThumbsDown, MessageCircle, Share2, MapPin, Send, Flag, MoreHorizontal, X } from "lucide-react";
+import { Heart, ThumbsDown, MessageCircle, Share2, MapPin, Send, Flag, MoreHorizontal, X, AlertTriangle, Edit3, Trash2 } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 import { Link } from "react-router-dom";
 
@@ -12,21 +12,43 @@ const roleColors = {
 };
 
 const postTypeBadge = {
-  warning: { label: "⚠️ Warning", className: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300" },
-  help: { label: "🆘 Help Needed", className: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" },
-  offer: { label: "🎉 Offer", className: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300" },
+  warning: { label: "Warning",     className: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300" },
+  help:    { label: "Help Needed", className: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" },
+  offer:   { label: "Offer",       className: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300" },
   general: null,
 };
 
 const REPORT_REASONS = ["Spam", "Harassment", "Misinformation", "Inappropriate content", "Scam", "Other"];
 
 export default function PostCard({ post }) {
-  const { toggleLike, toggleDislike, addComment, reportContent, user } = useApp();
+  const { toggleLike, toggleDislike, addComment, reportContent, editPost, deletePost, user } = useApp();
   const [showComments, setShowComments] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showReport, setShowReport] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [editContent, setEditContent] = useState(post.content);
+  const [editLoading, setEditLoading] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [commentText, setCommentText] = useState("");
+
+  const isOwner = user?.id === post.author?.id;
+
+  const handleEdit = async (e) => {
+    e.preventDefault();
+    if (!editContent.trim()) return;
+    setEditLoading(true);
+    try {
+      await editPost(post.id, editContent.trim());
+      setShowEdit(false);
+    } catch {}
+    setEditLoading(false);
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm("Delete this post?")) return;
+    try { await deletePost(post.id); } catch {}
+    setShowMenu(false);
+  };
 
   const handleComment = (e) => {
     e.preventDefault();
@@ -71,6 +93,17 @@ export default function PostCard({ post }) {
                 </span>
                 {typeBadge && (
                   <span className={`badge ${typeBadge.className} text-[10px]`}>{typeBadge.label}</span>
+                )}
+                {post.isEdited && (
+                  <span className="badge bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400 text-[10px]">
+                    edited
+                  </span>
+                )}
+                {post.reportCount > 0 && (
+                  <span className="badge bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400 text-[10px] flex items-center gap-0.5">
+                    <AlertTriangle size={9} />
+                    Reported {post.reportCount} {post.reportCount === 1 ? "time" : "times"}
+                  </span>
                 )}
               </div>
               <div className="flex items-center gap-1.5 mt-0.5">
@@ -160,8 +193,26 @@ export default function PostCard({ post }) {
           </button>
           {showMenu && (
             <>
-              <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-              <div className="absolute right-0 bottom-full mb-2 w-40 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 py-1 z-20">
+              <div className="fixed inset-0 z-[9998]" onClick={() => setShowMenu(false)} />
+              <div className="absolute right-0 bottom-full mb-2 w-44 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 py-1 z-[9999]">
+                {isOwner && (
+                  <>
+                    <button
+                      onClick={() => { setEditContent(post.content); setShowEdit(true); setShowMenu(false); }}
+                      disabled={post.editCount >= 3}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-40"
+                    >
+                      <Edit3 size={14} /> {post.editCount >= 3 ? "Edit (limit reached)" : `Edit post (${3 - post.editCount} left)`}
+                    </button>
+                    <button
+                      onClick={handleDelete}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    >
+                      <Trash2 size={14} /> Delete post
+                    </button>
+                    <div className="mx-2 my-1 border-t border-gray-100 dark:border-gray-700" />
+                  </>
+                )}
                 <button
                   onClick={() => { setShowReport(true); setShowMenu(false); }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
@@ -174,9 +225,42 @@ export default function PostCard({ post }) {
         </div>
       </div>
 
+      {/* Edit modal */}
+      {showEdit && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowEdit(false)} />
+          <div className="relative w-full max-w-sm bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Edit Post</h3>
+              <button onClick={() => setShowEdit(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleEdit}>
+              <textarea
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                rows={4}
+                className="w-full text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 text-gray-900 dark:text-gray-100 resize-none mb-3"
+                maxLength={500}
+              />
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
+                {3 - (post.editCount || 0)} edit{3 - (post.editCount || 0) !== 1 ? "s" : ""} remaining
+              </p>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowEdit(false)} className="flex-1 btn-secondary py-2.5 text-sm">Cancel</button>
+                <button type="submit" disabled={editLoading || !editContent.trim()} className="flex-1 btn-primary py-2.5 text-sm disabled:opacity-50">
+                  {editLoading ? "Saving…" : "Save"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Report modal */}
       {showReport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowReport(false)} />
           <div className="relative w-full max-w-sm bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-5">
             <div className="flex items-center justify-between mb-4">

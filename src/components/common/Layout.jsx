@@ -1,19 +1,21 @@
+import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import Navbar from "./Navbar";
 import BottomNav from "./BottomNav";
 import ToastContainer from "./Toast";
-import { Home, Map, MessageCircle, Briefcase, Bell, Building2, Store, Flag } from "lucide-react";
+import { Home, Map, MessageCircle, Briefcase, Bell, Building2, Store, Flag, X, Sparkles } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 
+// roles: undefined = visible to all roles; array = only those roles
 const sidebarItems = [
-  { path: "/", icon: Home, label: "Home Feed" },
-  { path: "/nearby", icon: Map, label: "Nearby" },
-  { path: "/businesses", icon: Store, label: "Businesses" },
+  { path: "/", icon: Home, label: "Home Feed", roles: ["normal"] },
+  { path: "/nearby", icon: Map, label: "Nearby", roles: ["normal"] },
+  { path: "/businesses", icon: Store, label: "Businesses", roles: ["normal"] },
   { path: "/chat", icon: MessageCircle, label: "Messages" },
-  { path: "/jobs", icon: Briefcase, label: "Jobs & Tasks" },
+  { path: "/jobs", icon: Briefcase, label: "Jobs & Tasks", roles: ["normal", "worker"] },
   { path: "/notifications", icon: Bell, label: "Notifications" },
   { path: "/reports", icon: Flag, label: "Reports" },
-  { path: "/business", icon: Building2, label: "My Business", businessOnly: true },
+  { path: "/business", icon: Building2, label: "My Business", roles: ["business"] },
 ];
 
 function Sidebar() {
@@ -22,8 +24,8 @@ function Sidebar() {
 
   return (
     <aside className="hidden lg:flex flex-col w-64 fixed left-0 top-16 bottom-0 bg-white dark:bg-gray-800 border-r border-gray-100 dark:border-gray-700 py-4 px-3 overflow-y-auto transition-colors">
-      {sidebarItems.map(({ path, icon: Icon, label, businessOnly }) => {
-        if (businessOnly && user?.role !== "business") return null;
+      {sidebarItems.map(({ path, icon: Icon, label, roles }) => {
+        if (roles && !roles.includes(user?.role || "normal")) return null;
         const isActive =
           path === "/" ? location.pathname === "/" : location.pathname.startsWith(path);
         const badge =
@@ -73,6 +75,66 @@ function Sidebar() {
   );
 }
 
+function AIAssistantButton() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      {/* Floating button */}
+      <button
+        onClick={() => setOpen(true)}
+        className="fixed bottom-24 lg:bottom-6 right-4 z-[9990] flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl shadow-xl px-3 py-2.5 transition-all hover:scale-105 active:scale-95 group"
+        title="Hello Neighbour AI"
+      >
+        <img
+          src="https://cdn.jsdelivr.net/gh/alohe/avatars/png/vibrent_5.png"
+          alt="AI"
+          className="w-8 h-8 rounded-full object-cover border-2 border-white/30"
+        />
+        <div className="hidden sm:flex flex-col items-start leading-none">
+          <span className="text-[10px] text-emerald-200 font-medium">Hello Neighbour</span>
+          <span className="text-xs font-bold">AI Assistant</span>
+        </div>
+        <Sparkles size={14} className="text-emerald-200 hidden sm:block" />
+      </button>
+
+      {/* Placeholder modal */}
+      {open && (
+        <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setOpen(false)} />
+          <div className="relative w-full max-w-md bg-white dark:bg-gray-800 rounded-3xl rounded-b-none sm:rounded-3xl shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-5 py-4 flex items-center gap-3">
+              <img
+                src="https://cdn.jsdelivr.net/gh/alohe/avatars/png/vibrent_5.png"
+                alt="AI"
+                className="w-10 h-10 rounded-full border-2 border-white/40"
+              />
+              <div className="flex-1">
+                <p className="font-bold text-white">Hello Neighbour AI</p>
+                <p className="text-xs text-emerald-100">Your neighbourhood assistant</p>
+              </div>
+              <button onClick={() => setOpen(false)} className="text-white/70 hover:text-white transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            {/* Placeholder body */}
+            <div className="px-5 py-10 text-center">
+              <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-2xl flex items-center justify-center mx-auto mb-4 text-3xl">
+                🤖
+              </div>
+              <h3 className="font-bold text-gray-900 dark:text-white mb-2">Coming Soon</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                Hello Neighbour AI will help you discover local services, answer neighbourhood questions, and connect with the right people.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function Layout({ children }) {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
@@ -85,6 +147,7 @@ export default function Layout({ children }) {
       </div>
       <BottomNav />
       <ToastContainer />
+      <AIAssistantButton />
     </div>
   );
 }

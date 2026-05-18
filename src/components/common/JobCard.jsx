@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MapPin, Clock, Users, AlertCircle, MessageSquare, ChevronDown, ChevronUp, Send } from "lucide-react";
+import { MapPin, Clock, Users, AlertCircle, MessageSquare, ChevronDown, ChevronUp, Send, Briefcase } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 
 const statusConfig = {
@@ -50,7 +50,7 @@ export default function JobCard({ job, onApply, showActions = true }) {
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
-            {job.categoryIcon && <span className="text-lg">{job.categoryIcon}</span>}
+            <Briefcase size={15} className="text-emerald-500 flex-shrink-0" />
             <h3 className="font-semibold text-gray-900 dark:text-white text-base leading-tight">{job.title}</h3>
           </div>
           <div className="flex items-center gap-2 flex-wrap">

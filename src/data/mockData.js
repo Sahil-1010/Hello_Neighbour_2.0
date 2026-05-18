@@ -503,12 +503,23 @@ export const extendedBusinesses = [
 ];
 
 export const businessCategories = [
-  { name: "Cafe", icon: "☕", color: "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300" },
-  { name: "Restaurant", icon: "🍽️", color: "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300" },
-  { name: "Grocery", icon: "🛒", color: "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300" },
-  { name: "Hospital", icon: "🏥", color: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300" },
-  { name: "Hotel", icon: "🏨", color: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300" },
-  { name: "Services", icon: "🔧", color: "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" },
+  { name: "Cafe",        icon: "☕",  color: "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300" },
+  { name: "Restaurant",  icon: "🍽️", color: "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300" },
+  { name: "Grocery",     icon: "🛒", color: "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300" },
+  { name: "Hospital",    icon: "🏥", color: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300" },
+  { name: "Pharmacy",    icon: "💊", color: "bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300" },
+  { name: "Hotel",       icon: "🏨", color: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300" },
+  { name: "Bakery",      icon: "🥖", color: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300" },
+  { name: "Salon",       icon: "💇", color: "bg-fuchsia-100 dark:bg-fuchsia-900/30 text-fuchsia-700 dark:text-fuchsia-300" },
+  { name: "Gym",         icon: "🏋️", color: "bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300" },
+  { name: "Hardware",    icon: "🔧", color: "bg-stone-100 dark:bg-stone-900/30 text-stone-700 dark:text-stone-300" },
+  { name: "Electronics", icon: "💻", color: "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300" },
+  { name: "Clothing",    icon: "👗", color: "bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300" },
+  { name: "Laundry",     icon: "👕", color: "bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300" },
+  { name: "Repair",      icon: "🛠️", color: "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300" },
+  { name: "Education",   icon: "📚", color: "bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300" },
+  { name: "Services",    icon: "🔧", color: "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" },
+  { name: "Other",       icon: "🏪", color: "bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300" },
 ];
 
 // Legacy export for backward compat

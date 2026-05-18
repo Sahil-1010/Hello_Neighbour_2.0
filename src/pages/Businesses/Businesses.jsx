@@ -1,13 +1,11 @@
 import { useState } from "react";
-import { Search, Star, MapPin, MessageCircle, Plus, Clock } from "lucide-react";
+import { Search, Star, MapPin, MessageCircle, Plus, Clock, Store } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
-import { businessCategories } from "../../data/mockData";
+import { CategoryIcon } from "../../utils/categoryIcons";
 
 // ── Business Card ─────────────────────────────────────────────────────────────
 function BusinessCard({ biz }) {
-  // Find the first offer that is explicitly active (new object format)
-  // or treat a plain string as active (legacy fallback)
   const activeOffer = biz.offers?.find((o) =>
     typeof o === "object" ? o.isActive : true
   );
@@ -23,7 +21,7 @@ function BusinessCard({ biz }) {
           <img src={biz.image} alt={biz.name} className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center">
-            <span className="text-5xl">{biz.categoryIcon || "🏪"}</span>
+            <CategoryIcon category={biz.category} size={44} className="text-white/80" />
           </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
@@ -46,7 +44,10 @@ function BusinessCard({ biz }) {
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="min-w-0">
             <h3 className="font-semibold text-gray-900 dark:text-white text-sm leading-tight truncate">{biz.name}</h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{biz.categoryIcon} {biz.category}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 flex items-center gap-1">
+              <CategoryIcon category={biz.category} size={11} />
+              {biz.category}
+            </p>
           </div>
           {biz.rating > 0 && (
             <div className="flex items-center gap-1 flex-shrink-0">
@@ -70,7 +71,7 @@ function BusinessCard({ biz }) {
           </div>
         )}
 
-        {/* Active offer — only shown when owner has enabled it */}
+        {/* Active offer */}
         {offerTitle && (
           <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/50 rounded-xl px-3 py-2 mb-3">
             <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-0.5">Active offer</p>
@@ -81,7 +82,7 @@ function BusinessCard({ biz }) {
         {/* Actions */}
         <div className="flex gap-2 mt-auto">
           <Link
-            to={`/chat?userId=${biz.owner?._id || biz.owner?.id || ""}`}
+            to={`/chat?userId=${biz.owner?._id?.toString() || biz.owner?.id || ""}`}
             className="flex-1 flex items-center justify-center gap-1.5 btn-secondary py-2 text-xs"
           >
             <MessageCircle size={13} /> Contact
@@ -96,7 +97,7 @@ function BusinessCard({ biz }) {
 }
 
 // ── Category Summary Card ────────────────────────────────────────────────────
-function CategorySummaryCard({ cat, count, isActive, onClick }) {
+function CategorySummaryCard({ name, count, isActive, onClick }) {
   return (
     <button
       onClick={onClick}
@@ -106,12 +107,18 @@ function CategorySummaryCard({ cat, count, isActive, onClick }) {
           : "border-transparent bg-white dark:bg-gray-800 shadow-card hover:border-gray-200 dark:hover:border-gray-600"
       }`}
     >
-      <span className="text-2xl">{cat.icon}</span>
+      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isActive ? "bg-emerald-100 dark:bg-emerald-800/40" : "bg-gray-100 dark:bg-gray-700"}`}>
+        <CategoryIcon
+          category={name}
+          size={16}
+          className={isActive ? "text-emerald-600 dark:text-emerald-400" : "text-gray-500 dark:text-gray-400"}
+        />
+      </div>
       <div className="text-center">
         <div className={`text-base font-bold ${isActive ? "text-emerald-600 dark:text-emerald-400" : "text-gray-900 dark:text-white"}`}>
           {count}
         </div>
-        <div className="text-[10px] text-gray-500 dark:text-gray-400 font-medium leading-tight">{cat.name}</div>
+        <div className="text-[10px] text-gray-500 dark:text-gray-400 font-medium leading-tight">{name}</div>
       </div>
     </button>
   );
@@ -125,7 +132,6 @@ export default function Businesses() {
 
   const totalCount = filteredBusinesses.length;
 
-  // Build categories dynamically from actual data — not restricted to mockData list
   const uniqueCategories = [...new Set(filteredBusinesses.map((b) => b.category).filter(Boolean))];
   const categoryCounts = uniqueCategories.reduce((acc, name) => {
     acc[name] = filteredBusinesses.filter((b) => b.category === name).length;
@@ -142,20 +148,17 @@ export default function Businesses() {
     return matchCat && matchSearch;
   });
 
-  // Group by category dynamically — catches any category not in mockData
+  // Group by category
   const grouped = {};
   displayed.forEach((biz) => {
     const cat = biz.category || "Other";
-    if (!grouped[cat]) {
-      const mockCat = businessCategories.find((c) => c.name === cat);
-      grouped[cat] = { name: cat, icon: mockCat?.icon || "🏪", items: [] };
-    }
+    if (!grouped[cat]) grouped[cat] = { name: cat, items: [] };
     grouped[cat].items.push(biz);
   });
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-      {/* ── Header ──────────────────────────────────────────────────────────── */}
+      {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="section-title">Business Directory</h1>
@@ -172,7 +175,7 @@ export default function Businesses() {
         )}
       </div>
 
-      {/* ── Category Summary Grid ────────────────────────────────────────────── */}
+      {/* Category Summary Grid */}
       <div>
         <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Browse by Category</h2>
         <div className="flex gap-3 overflow-x-auto hide-scrollbar pb-1">
@@ -185,29 +188,27 @@ export default function Businesses() {
                 : "border-transparent bg-white dark:bg-gray-800 shadow-card hover:border-gray-200 dark:hover:border-gray-600"
             }`}
           >
-            <span className="text-2xl">🏬</span>
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${activeCategory === "All" ? "bg-emerald-100 dark:bg-emerald-800/40" : "bg-gray-100 dark:bg-gray-700"}`}>
+              <Store size={16} className={activeCategory === "All" ? "text-emerald-600 dark:text-emerald-400" : "text-gray-500 dark:text-gray-400"} />
+            </div>
             <div className="text-center">
               <div className={`text-base font-bold ${activeCategory === "All" ? "text-emerald-600 dark:text-emerald-400" : "text-gray-900 dark:text-white"}`}>{totalCount}</div>
               <div className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">All</div>
             </div>
           </button>
-          {uniqueCategories.map((name) => {
-            const mockCat = businessCategories.find((c) => c.name === name);
-            const cat = mockCat || { name, icon: "🏪" };
-            return (
-              <CategorySummaryCard
-                key={name}
-                cat={cat}
-                count={categoryCounts[name] || 0}
-                isActive={activeCategory === name}
-                onClick={() => setActiveCategory(name === activeCategory ? "All" : name)}
-              />
-            );
-          })}
+          {uniqueCategories.map((name) => (
+            <CategorySummaryCard
+              key={name}
+              name={name}
+              count={categoryCounts[name] || 0}
+              isActive={activeCategory === name}
+              onClick={() => setActiveCategory(name === activeCategory ? "All" : name)}
+            />
+          ))}
         </div>
       </div>
 
-      {/* ── Search ──────────────────────────────────────────────────────────── */}
+      {/* Search */}
       <div className="relative">
         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
         <input
@@ -219,26 +220,24 @@ export default function Businesses() {
         />
       </div>
 
-      {/* ── Content ─────────────────────────────────────────────────────────── */}
+      {/* Content */}
       {displayed.length === 0 ? (
         <div className="card p-16 text-center">
-          <p className="text-5xl mb-4">🏢</p>
+          <Store size={40} className="text-gray-300 dark:text-gray-600 mx-auto mb-4" />
           <p className="font-semibold text-gray-700 dark:text-gray-300 mb-1">No businesses found</p>
           <p className="text-sm text-gray-500 dark:text-gray-400">Try a different search or category.</p>
         </div>
       ) : activeCategory === "All" ? (
-        /* Sectioned view when showing all */
         <div className="space-y-8">
-          {Object.values(grouped).map(({ name, icon = "🏪", items }) => (
+          {Object.values(grouped).map(({ name, items }) => (
             <section key={name}>
               <div className="flex items-center justify-between mb-3">
                 <h2 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                  <span className="text-xl">{icon}</span>
+                  <CategoryIcon category={name} size={18} className="text-emerald-500" />
                   {name}
                   <span className="badge bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 ml-1">{items.length}</span>
                 </h2>
               </div>
-              {/* Horizontal scroll on mobile, grid on md+ */}
               <div className="flex gap-4 overflow-x-auto hide-scrollbar md:hidden pb-2">
                 {items.map((biz) => (
                   <div key={biz.id} className="min-w-[260px] max-w-[280px] flex-shrink-0">
@@ -247,26 +246,21 @@ export default function Businesses() {
                 ))}
               </div>
               <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {items.map((biz) => (
-                  <BusinessCard key={biz.id} biz={biz} />
-                ))}
+                {items.map((biz) => <BusinessCard key={biz.id} biz={biz} />)}
               </div>
             </section>
           ))}
         </div>
       ) : (
-        /* Flat grid for single category */
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {displayed.map((biz) => (
-            <BusinessCard key={biz.id} biz={biz} />
-          ))}
+          {displayed.map((biz) => <BusinessCard key={biz.id} biz={biz} />)}
         </div>
       )}
 
-      {/* Business Owner CTA (if not already one) */}
+      {/* Business Owner CTA */}
       {user?.role !== "business" && (
         <div className="card p-6 border-dashed border-2 border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-900/10 text-center">
-          <p className="text-2xl mb-2">🏪</p>
+          <Store size={28} className="text-emerald-500 mx-auto mb-2" />
           <h3 className="font-bold text-gray-900 dark:text-white mb-1">Own a local business?</h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
             List your business and reach thousands of neighbors in {currentNeighborhood}.

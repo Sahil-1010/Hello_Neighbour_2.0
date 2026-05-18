@@ -8,7 +8,17 @@ connectDB();
 
 const app = express();
 
-app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  "http://localhost:5000",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, cb) => cb(null, !origin || allowedOrigins.includes(origin)),
+  credentials: true,
+}));
 app.use(express.json({ limit: "10mb" }));
 
 app.use("/api/auth", require("./src/routes/auth"));
@@ -20,6 +30,7 @@ app.use("/api/notifications", require("./src/routes/notifications"));
 app.use("/api/neighborhoods", require("./src/routes/neighborhoods"));
 app.use("/api/messages", require("./src/routes/messages"));
 app.use("/api/reports", require("./src/routes/reports"));
+app.use("/api/orders", require("./src/routes/orders"));
 app.use("/api/search", require("./src/routes/search"));
 
 app.use((err, req, res, next) => {

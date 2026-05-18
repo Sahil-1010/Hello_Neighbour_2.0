@@ -42,9 +42,11 @@ const userSchema = new mongoose.Schema(
     category:     { type: String, default: "" },
 
     // Stats
-    connections:    { type: Number, default: 0 },
-    connectionList: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    postsCount:     { type: Number, default: 0 },
+    connections:            { type: Number, default: 0 },
+    connectionList:         [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    connectionRequests:     [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    connectionRequestsSent: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    postsCount:             { type: Number, default: 0 },
 
     // Moderation
     blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],

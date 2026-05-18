@@ -35,6 +35,11 @@ router.post("/", auth, async (req, res) => {
       neighborhood:   reporter.neighborhood || "",
     });
 
+    // Track report count on the post so UI can show a "Flagged" badge
+    if (type === "post") {
+      await Post.findByIdAndUpdate(targetId, { $inc: { reportCount: 1 } });
+    }
+
     res.status(201).json({ id: report._id.toString(), message: "Report submitted" });
   } catch (err) {
     if (err.code === 11000) {

@@ -215,6 +215,10 @@ export function AppProvider({ children }) {
   // ── Business actions ──────────────────────────────────────────────────────
   const addBusiness = (business) => {
     setBusinesses((prev) => [business, ...prev]);
+    // Refresh notifications for other users who may have received new_business alert
+    setTimeout(() => {
+      api.get("/notifications").then(setNotifications).catch(() => {});
+    }, 1500);
   };
 
   const updateBusiness = (updated) => {
@@ -237,11 +241,30 @@ export function AppProvider({ children }) {
     return data;
   };
 
+  const placeOrder = async (orderData) => {
+    const data = await api.post("/orders", orderData);
+    addToast({ type: "success", message: "Order placed! The business owner will review it." });
+    return data;
+  };
+
   // ── Post actions ──────────────────────────────────────────────────────────
   const addPost = async (postData) => {
     const newPost = await api.post("/posts", postData);
     setPosts((prev) => [newPost, ...prev]);
     addToast({ type: "success", message: "Post shared with your neighborhood! 🎉" });
+  };
+
+  const editPost = async (postId, content) => {
+    const updated = await api.put(`/posts/${postId}`, { content });
+    setPosts((prev) => prev.map((p) => p.id === postId ? updated : p));
+    addToast({ type: "success", message: "Post updated." });
+    return updated;
+  };
+
+  const deletePost = async (postId) => {
+    await api.delete(`/posts/${postId}`);
+    setPosts((prev) => prev.filter((p) => p.id !== postId));
+    addToast({ type: "success", message: "Post deleted." });
   };
 
   const toggleLike = async (postId) => {
@@ -405,8 +428,10 @@ export function AppProvider({ children }) {
     return msgs;
   };
 
-  const sendMessage = async (conversationId, text) => {
-    const newMsg = await api.post(`/messages/conversations/${conversationId}`, { text });
+  const sendMessage = async (conversationId, text, orderId = null) => {
+    const body = { text };
+    if (orderId) body.orderId = orderId;
+    const newMsg = await api.post(`/messages/conversations/${conversationId}`, body);
     setMessages((prev) => ({
       ...prev,
       [conversationId]: [...(prev[conversationId] || []), newMsg],
@@ -425,6 +450,54 @@ export function AppProvider({ children }) {
       return [conv, ...prev];
     });
     return conv;
+  };
+
+  // ── Connection request actions ────────────────────────────────────────────
+  const sendConnectionRequest = async (targetId) => {
+    const data = await api.post("/users/connect/request", { targetId });
+    setUser((prev) => {
+      if (!prev) return prev;
+      const sent = prev.connectionRequestsSent || [];
+      return { ...prev, connectionRequestsSent: [...sent, targetId] };
+    });
+    addToast({ type: "info", message: "Connection request sent" });
+    return data;
+  };
+
+  const acceptConnectionRequest = async (requesterId) => {
+    const data = await api.post("/users/connect/accept", { requesterId });
+    setUser((prev) => {
+      if (!prev) return prev;
+      const requests = (prev.connectionRequests || []).filter((id) => id.toString() !== requesterId);
+      const list = [...(prev.connectionList || []), requesterId];
+      return { ...prev, connectionRequests: requests, connectionList: list, connections: (prev.connections || 0) + 1 };
+    });
+    addToast({ type: "success", message: "Connection accepted!" });
+    return data;
+  };
+
+  const rejectConnectionRequest = async (requesterId) => {
+    const data = await api.post("/users/connect/reject", { requesterId });
+    setUser((prev) => {
+      if (!prev) return prev;
+      const requests = (prev.connectionRequests || []).filter((id) => id.toString() !== requesterId);
+      return { ...prev, connectionRequests: requests };
+    });
+    return data;
+  };
+
+  // ── Business connect action ───────────────────────────────────────────────
+  const connectToBusiness = async (businessId) => {
+    const data = await api.post(`/businesses/${businessId}/connect`, {});
+    setBusinesses((prev) =>
+      prev.map((b) =>
+        b.id === businessId
+          ? { ...b, members: data.connected ? [...(b.members || []), user?.id] : (b.members || []).filter((m) => m?.toString() !== user?.id), memberCount: data.memberCount }
+          : b
+      )
+    );
+    addToast({ type: "info", message: data.connected ? "Connected to business!" : "Disconnected from business" });
+    return data;
   };
 
   // ── Derived counts ────────────────────────────────────────────────────────
@@ -447,7 +520,8 @@ export function AppProvider({ children }) {
         // neighborhood
         currentNeighborhood, switchNeighborhood, leaveNeighborhood,
         neighborhoodsList, fetchNeighborhoods, createNeighborhood, joinNeighborhood,
-        fetchUserById, connectUser,
+        fetchUserById, connectUser, sendConnectionRequest, acceptConnectionRequest, rejectConnectionRequest,
+        connectToBusiness,
         // data
         posts, jobs, myJobs, businesses, nearbyUsers, notifications, conversations, messages, offers,
         // aliases
@@ -455,9 +529,9 @@ export function AppProvider({ children }) {
         // counts
         unreadNotifCount, unreadMsgCount,
         // business actions
-        addBusiness, updateBusiness, rateBusiness, respondToOrder,
+        addBusiness, updateBusiness, rateBusiness, respondToOrder, placeOrder,
         // post actions
-        addPost, toggleLike, toggleDislike, addComment,
+        addPost, editPost, deletePost, toggleLike, toggleDislike, addComment,
         // moderation
         reportContent, blockUser, muteUser, searchContent,
         // job actions
